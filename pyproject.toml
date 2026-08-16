@@ -1,0 +1,24 @@
+[project]
+name = "goron"
+version = "0.1.0"
+description = "Two-leg self-righting robot: MuJoCo model + RL environment"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "gymnasium>=1.3.0",
+    "imageio[ffmpeg]>=2.37.4",
+    "mujoco>=3.11.0",
+    "stable-baselines3[extra]>=2.9.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["goron"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

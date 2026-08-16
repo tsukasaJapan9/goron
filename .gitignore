@@ -1,0 +1,22 @@
+# Generated MJCF. The environment builds its model in memory from
+# RobotParams; these files are only written for viewing, by:
+#     uv run python -m goron.model
+models/
+
+# Training output: checkpoints, VecNormalize stats, tensorboard logs
+runs/
+
+# PlatformIO build output
+firmware/*/.pio/
+
+# PlatformIO build output and downloaded libraries (~300 MB)
+.pio/
+
+# Stray runtime logs
+log_iotc.txt
+
+# Python / tooling
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
