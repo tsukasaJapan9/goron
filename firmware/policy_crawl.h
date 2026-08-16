@@ -8,10 +8,11 @@
 //   [10:12] crank velocity / 10.79          (XL330 present velocity)
 //   [12:14] servo torque / 0.52             (XL330 present current)
 //
-// The crank angle convention must match the simulation: angle 0 is the CAD
-// assembly pose. Zero the servos there. A mismatched zero is not a small loss
-// of quality -- measured on this robot, a 240 degree offset took self-righting
-// from 100%% to 27%% and travel from 0.31 m/s to 0.04 m/s.
+// CRANK ZERO: this policy expects servo angle 0 to be the CAD assembly pose
+// rotated by GORON_CRANK_ZERO_DEG. Calibrate the servo origin there. A
+// mismatched zero is not a small loss of quality -- measured on this robot, a
+// 240 degree offset took self-righting from 100%% to 27%% and travel from
+// 0.31 m/s to 0.04 m/s.
 #pragma once
 #include <math.h>
 
@@ -24,6 +25,7 @@
 #define GORON_MAX_DELTA 0.215800f
 #define GORON_MAX_LEAD  0.500000f
 #define GORON_OBS_CLIP  10.0f
+#define GORON_CRANK_ZERO_DEG 0.0f
 
 static const float goron_obs_mean[14] = {
     -0.22767745f, 0.0068743294f, 0.941019f, 0.063514717f, 0.3808679f, -0.022773558f,

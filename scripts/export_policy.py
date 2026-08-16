@@ -122,6 +122,9 @@ def main() -> None:
     ap.add_argument("--max-delta", type=float, default=None,
                     help="rad per control step; default = servo no-load speed / 50 Hz")
     ap.add_argument("--max-lead", type=float, default=0.5)
+    ap.add_argument("--crank-zero", type=float, default=0.0,
+                    help="degrees the servo zero must be offset from the CAD "
+                         "assembly pose for this policy")
     args = ap.parse_args()
 
     model, venv = load(args.run, args.model)
@@ -146,10 +149,11 @@ def main() -> None:
 //   [10:12] crank velocity / {p.servo_no_load_speed:.2f}          (XL330 present velocity)
 //   [12:14] servo torque / {p.servo_stall_torque:.2f}             (XL330 present current)
 //
-// The crank angle convention must match the simulation: angle 0 is the CAD
-// assembly pose. Zero the servos there. A mismatched zero is not a small loss
-// of quality -- measured on this robot, a 240 degree offset took self-righting
-// from 100%% to 27%% and travel from 0.31 m/s to 0.04 m/s.
+// CRANK ZERO: this policy expects servo angle 0 to be the CAD assembly pose
+// rotated by GORON_CRANK_ZERO_DEG. Calibrate the servo origin there. A
+// mismatched zero is not a small loss of quality -- measured on this robot, a
+// 240 degree offset took self-righting from 100%% to 27%% and travel from
+// 0.31 m/s to 0.04 m/s.
 #pragma once
 #include <math.h>
 
@@ -162,6 +166,7 @@ def main() -> None:
 #define GORON_MAX_DELTA {max_delta:.6f}f
 #define GORON_MAX_LEAD  {args.max_lead:.6f}f
 #define GORON_OBS_CLIP  {venv.clip_obs:.1f}f
+#define GORON_CRANK_ZERO_DEG {args.crank_zero:.1f}f
 
 """)
         f.write(c_array("goron_obs_mean", mean.astype(np.float32)))
