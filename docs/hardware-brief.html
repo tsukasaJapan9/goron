@@ -1,0 +1,482 @@
+<title>Goron Hardware Brief</title>
+<style>
+  /* Palette taken from the robot's own render: slate body, cobalt legs,
+     signal-orange feet. Neutrals carry a cool blue bias to match. */
+  :root {
+    --ground:      #F5F7FA;
+    --surface:     #FFFFFF;
+    --surface-alt: #EDF1F6;
+    --ink:         #171D26;
+    --ink-soft:    #4A5567;
+    --ink-faint:   #78849A;
+    --rule:        #D8E0EA;
+    --rule-strong: #B9C5D4;
+    --accent:      #D9541F;
+    --accent-soft: #FBEDE6;
+    --cobalt:      #2F6FC4;
+    --cobalt-soft: #E8F0FA;
+    --good:        #1B7A63;
+    --good-soft:   #E4F2EE;
+    --shadow:      0 1px 2px rgba(23, 29, 38, .06), 0 8px 24px rgba(23, 29, 38, .05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0E1319;
+      --surface:     #161D26;
+      --surface-alt: #1D2631;
+      --ink:         #E4E9F0;
+      --ink-soft:    #A5B1C2;
+      --ink-faint:   #76839A;
+      --rule:        #28323F;
+      --rule-strong: #3A4757;
+      --accent:      #FF7A45;
+      --accent-soft: #2A1A12;
+      --cobalt:      #6BA6E8;
+      --cobalt-soft: #14202E;
+      --good:        #4FC5A5;
+      --good-soft:   #10231E;
+      --shadow:      0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #0E1319;
+    --surface:     #161D26;
+    --surface-alt: #1D2631;
+    --ink:         #E4E9F0;
+    --ink-soft:    #A5B1C2;
+    --ink-faint:   #76839A;
+    --rule:        #28323F;
+    --rule-strong: #3A4757;
+    --accent:      #FF7A45;
+    --accent-soft: #2A1A12;
+    --cobalt:      #6BA6E8;
+    --cobalt-soft: #14202E;
+    --good:        #4FC5A5;
+    --good-soft:   #10231E;
+    --shadow:      0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ---- masthead ---- */
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding: 56px 0 20px;
+    margin-bottom: 40px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 44px);
+    line-height: 1.15;
+    letter-spacing: -.02em;
+    font-weight: 660;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 17px;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 62ch;
+  }
+
+  /* ---- verdict strip ---- */
+  .verdict {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 0 0 52px;
+  }
+  .verdict div { background: var(--surface); padding: 16px 18px; }
+  .verdict dt {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 6px;
+  }
+  .verdict dd {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 640;
+    letter-spacing: -.01em;
+    font-variant-numeric: tabular-nums;
+  }
+  .verdict .unit { font-size: 13px; font-weight: 500; color: var(--ink-soft); }
+
+  /* ---- sections ---- */
+  section { margin-bottom: 52px; }
+  h2 {
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    margin: 0 0 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .lede {
+    font-size: 15px;
+    color: var(--ink-soft);
+    margin: 16px 0 24px;
+    max-width: 68ch;
+  }
+  h3 {
+    font-size: 17px;
+    font-weight: 620;
+    letter-spacing: -.01em;
+    margin: 0 0 8px;
+  }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ---- constraint cards ---- */
+  .rules { display: flex; flex-direction: column; gap: 16px; }
+  .rule-card {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 5px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  .rule-card .tag {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 8px;
+  }
+  .evidence {
+    margin-top: 14px;
+    padding: 11px 14px;
+    background: var(--accent-soft);
+    border-radius: 4px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    line-height: 1.6;
+  }
+  .evidence b { color: var(--ink); font-weight: 620; }
+
+  /* ---- tables ---- */
+  .scroll { overflow-x: auto; margin: 0 0 8px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    min-width: 420px;
+  }
+  caption {
+    text-align: left;
+    font-size: 13px;
+    color: var(--ink-faint);
+    padding-bottom: 8px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 14px 9px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  th {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    border-bottom: 1px solid var(--rule-strong);
+    white-space: nowrap;
+  }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.num { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  tbody tr:last-child td { border-bottom: none; }
+  .pick { color: var(--good); font-weight: 640; }
+
+  .chip {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: .04em;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--good-soft);
+    color: var(--good);
+    white-space: nowrap;
+  }
+  .chip.watch { background: var(--accent-soft); color: var(--accent); }
+
+  /* ---- spec list ---- */
+  .spec {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px;
+  }
+  .spec div {
+    background: var(--surface-alt);
+    border-radius: 5px;
+    padding: 15px 17px;
+  }
+  .spec dt {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 5px;
+  }
+  .spec dd { margin: 0; font-size: 14.5px; }
+  .spec dd .v {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 620;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .note {
+    border-left: 3px solid var(--cobalt);
+    background: var(--cobalt-soft);
+    padding: 16px 20px;
+    border-radius: 0 5px 5px 0;
+    font-size: 14px;
+    color: var(--ink-soft);
+  }
+  .note b { color: var(--ink); font-weight: 620; }
+  .note :last-child { margin-bottom: 0; }
+
+  ul { margin: 0 0 14px; padding-left: 20px; max-width: 68ch; }
+  li { margin-bottom: 7px; }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 20px;
+    font-size: 13px;
+    color: var(--ink-faint);
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .89em;
+    background: var(--surface-alt);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">シミュレーション検証済 / 設計入力</p>
+  <h1>2軸クランク脚ロボット 設計ブリーフ</h1>
+  <p class="standfirst">MuJoCo + PPO で起き上がり・移動を検証した結果から、筐体設計に効く制約と実測荷重をまとめたもの。数値はすべてシミュレーション実測値。</p>
+</header>
+
+<dl class="verdict">
+  <div><dt>脚形状</dt><dd>C脚</dd></div>
+  <div><dt>起き上がり</dt><dd>100<span class="unit">% / 0.8 s</span></dd></div>
+  <div><dt>転がり移動</dt><dd>0.44<span class="unit"> m/s</span></dd></div>
+  <div><dt>非回転移動</dt><dd>0.15<span class="unit"> m/s</span></dd></div>
+  <div><dt>トルク余裕</dt><dd>7–10<span class="unit">×</span></dd></div>
+</dl>
+
+<section>
+  <h2>守らないと成立しない制約</h2>
+  <p class="lede">以下は「あった方がよい」ではなく、外すとロボットが機能しなくなる項目。いずれも実測で確認している。</p>
+
+  <div class="rules">
+    <div class="rule-card">
+      <span class="tag">クリアランス</span>
+      <h3>サーボケースを腹面より下に出さない</h3>
+      <p>XL330 のケース厚 26 mm は M5Stack の 16 mm より厚い。胴体の中央高さに取り付けると、ケースが腹面より 5 mm 下に突き出し、ロボットは腹ではなく<b>サーボケースの上に乗って静止</b>する。この状態では「腹を接地させる」動作が原理的に成立しない。</p>
+      <div class="evidence">開ループ起き上がり成功率 — 上面マウント <b>47.0%</b> / 中央マウント <b>0.75%</b>。同一形状で取付高さを変えただけの差。ゴール到達可能なクランク角も 2/24 → 19/24 に変化する。</div>
+    </div>
+
+    <div class="rule-card">
+      <span class="tag">可動域</span>
+      <h3>ヒップ軸を筐体側面より外側に出す</h3>
+      <p>脚が筐体の外側を通過できなければ 360° 回転が物理的に成立しない。ヒップ軸の左右オフセットは<b>筐体半幅 + 脚半径</b>より大きく取る。現行モデルでは側壁から 12 mm 外側。</p>
+      <div class="evidence">検査式 <code>hip_y &gt; torso_width/2 + leg_radius</code> をコード側に実装済（<code>leg_clears_torso</code>）。24 姿勢すべてで自己干渉ゼロを回帰テストで確認している。</div>
+    </div>
+
+    <div class="rule-card">
+      <span class="tag">制御モード</span>
+      <h3>Extended Position Control Mode を使う</h3>
+      <p>通常の Position Control Mode（0–360°）では連続回転ができない。Extended Position Control Mode（±256 回転）だけが<b>360° 連続回転と絶対角度フィードバックを同時に成立</b>させる。観測に脚の位相が入ることが学習の前提になっている。</p>
+      <div class="evidence">観測を殺すと起き上がり成功率は 100% → 40%（ゼロ固定）/ 44%（ランダム）に低下。方策は開ループではなく、実際に位相情報を使っている。</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>脚形状の選定</h2>
+  <p class="lede">起き上がりは両者同等、移動は C脚が 2.4 倍。C脚に一本化してよい。</p>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>項目</th><th class="num">バー脚</th><th class="num">C脚</th><th>判定</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>起き上がり成功率</td><td class="num">100%</td><td class="num">100%</td><td><span class="chip">同等</span></td></tr>
+        <tr><td>起き上がり所要時間</td><td class="num">0.8 s</td><td class="num">0.8 s</td><td><span class="chip">同等</span></td></tr>
+        <tr><td>転がり移動</td><td class="num">0.18 m/s</td><td class="num pick">0.44 m/s</td><td><span class="chip">C脚 2.4×</span></td></tr>
+        <tr><td>非回転移動</td><td class="num">—</td><td class="num pick">0.15 m/s</td><td><span class="chip">C脚のみ検証</span></td></tr>
+        <tr><td>車高変動（1回転あたり）</td><td class="num">40 mm</td><td class="num pick">17 mm</td><td><span class="chip">C脚が滑らか</span></td></tr>
+        <tr><td>トルク破綻点</td><td class="num">0.03–0.05 N·m</td><td class="num">0.05–0.07 N·m</td><td><span class="chip">実用差なし</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:18px">開ループ比較では逆にバーが有利（成功率 47% 対 26%、押し上げ量 48 mm 対 25 mm）だったが、<b>学習を入れると逆転した</b>。C脚は接地点が弧の上を移動するため接地時間が長く、押す方向を制御できる。開ループ比較だけで脚形状を決めると誤る。</p>
+</section>
+
+<section>
+  <h2>設計荷重</h2>
+  <p class="lede">最悪ケース（連続宙返り、学習済み方策）で測定した接触荷重。</p>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>荷重</th><th class="num">バー脚</th><th class="num">C脚</th><th>設計上の意味</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>最大接触力</td><td class="num">30.7 N</td><td class="num">43.7 N</td><td>自重の 21–29 倍</td></tr>
+        <tr><td>ヒップ軸への衝撃トルク</td><td class="num">0.59 N·m</td><td class="num">0.69 N·m</td><td>停動トルクの 1.1–1.3 倍</td></tr>
+        <tr><td>胴体の最高到達高さ</td><td class="num">34 mm</td><td class="num">41 mm</td><td>低い転がり。飛翔はしない</td></tr>
+        <tr><td>着地速度</td><td class="num">0.52 m/s</td><td class="num">0.47 m/s</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note" style="margin-top:22px">
+    <p><b>この数値は過小評価。</b> MuJoCo の接触は時定数 5 ms の柔らかい設定で、実機の樹脂対硬質床は 1 ms 以下。同じ力積でもピーク力は実機の方が高く出る。信頼できるのは力積の方。</p>
+  </div>
+
+  <p style="margin-top:22px"><b>最も弱いのは XL330 の樹脂ギヤ。</b> 脚がホーンに直結しているため、着地衝撃がそのままギヤ列に入る。12 秒で 40 回以上の半回転＝数千回の繰り返しになるので、1 回耐えられても摩耗・欠けが問題になる。</p>
+  <ul>
+    <li><b>脚を柔軟素材でプリント</b>、または C脚にばね区間を設ける — 最も効く対策</li>
+    <li>足先に TPU パッドを付けてピーク力を落とす</li>
+    <li>報酬に衝撃ペナルティを入れて再学習すれば、方策側から歩容を穏やかにできる（未実施）</li>
+  </ul>
+
+  <div class="note" style="margin-top:18px">
+    <p><b>シミュレーションの C脚は剛体。</b> 実機でばねとして作れば衝撃を吸収するので、上の C脚の荷重値は<b>悲観側の見積もり</b>。RHex が C脚を採用する理由の半分（弾性によるドライブトレイン保護）はまだモデル化できていない。</p>
+  </div>
+</section>
+
+<section>
+  <h2>気にしなくてよい項目</h2>
+  <p class="lede">1軸ずつ破綻するまで振った結果。設計の制約にならないことが確認できた項目。</p>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>軸</th><th class="num">破綻点</th><th>公称値との比</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>床摩擦</td><td class="num">μ = 0 でも 100%</td><td>影響なし。滑る床でも動作する</td></tr>
+        <tr><td>サーボトルク</td><td class="num">0.03–0.07 N·m</td><td>公称 0.52 N·m に対し <b>7–10 倍の余裕</b></td></tr>
+        <tr><td>総質量</td><td class="num">×16 で 100%</td><td>筐体が重くなっても余裕がある</td></tr>
+        <tr><td>ギヤ減衰</td><td class="num">×16 で 100%</td><td>個体差・経年劣化を吸収できる</td></tr>
+        <tr><td>観測ノイズ</td><td class="num">σ = 0.8 でも 100%</td><td>IMU 品質は制約にならない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:18px">ドメインランダム化あり／なしの評価がどちらも 100% だったのは、ランダム化幅が破綻点から桁で離れているため。<b>この課題はトルク臨界ではない</b>ので、サーボモデルの誤差が Sim2Real を壊す心配は小さい。</p>
+</section>
+
+<section>
+  <h2>制御インターフェース</h2>
+  <p class="lede">実機ファームウェアが満たすべき仕様。観測はすべて M5Stack の 6 軸 IMU と XL330 のフィードバックから取得できる量のみで構成してある。</p>
+  <dl class="spec">
+    <div><dt>制御周期</dt><dd><span class="v">50 Hz</span>（物理 500 Hz / frame_skip 10）</dd></div>
+    <div><dt>行動</dt><dd>目標角の<b>増分</b> 2 次元。飽和時に無負荷速度 <span class="v">10.8 rad/s</span> 相当</dd></div>
+    <div><dt>ワインドアップ防止</dt><dd>目標角を実測角の <span class="v">±0.5 rad</span> 以内に制限（必須）</dd></div>
+    <div><dt>観測</dt><dd><span class="v">14 次元</span> — 重力方向 3 / ジャイロ 3 / クランク角 sin·cos 4 / 角速度 2 / 電流 2</dd></div>
+    <div><dt>クランク角の扱い</dt><dd>生角度ではなく <span class="v">sin/cos</span>。連続回転で不連続と発散を避けるため</dd></div>
+    <div><dt>使わない量</dt><dd>胴体位置・ヨー角・関節実測角以外の内部状態</dd></div>
+  </dl>
+</section>
+
+<section>
+  <h2>筐体寸法の決め方</h2>
+  <p class="lede">3 軸のうち効くのは高さだけ。しかも効き方が直感と逆なので、ここは意識的に決める価値がある。</p>
+
+  <div class="note">
+    <p><b>背が高い筐体ほど起き上がりやすい。</b> 薄く作りたくなるところだが逆効果。背が高いほど仰向け姿勢が不安定になり、脱出に必要な回転角が小さくなる。高さ 16 mm → 40 mm で開ループ成功率が <b>約 4 倍</b>になる。</p>
+  </div>
+
+  <div class="scroll" style="margin-top:22px">
+    <table>
+      <caption>C脚・幅 72 mm・質量 214 g 固定。開ループ起き上がり成功率（250 試行）</caption>
+      <thead>
+        <tr><th>高さ (Z)</th><th class="num">前後長 54</th><th class="num">60</th><th class="num">70</th><th class="num">80</th><th class="num">90</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>40 mm</b></td><td class="num pick">62.4%</td><td class="num pick">68.8%</td><td class="num pick">73.6%</td><td class="num pick">70.8%</td><td class="num">32.4%</td></tr>
+        <tr><td>32 mm</td><td class="num">46.0%</td><td class="num">49.2%</td><td class="num">53.2%</td><td class="num">55.6%</td><td class="num">52.8%</td></tr>
+        <tr><td>24 mm</td><td class="num">28.8%</td><td class="num">32.0%</td><td class="num">37.6%</td><td class="num">38.8%</td><td class="num">36.8%</td></tr>
+        <tr><td>16 mm</td><td class="num">18.0%</td><td class="num">17.2%</td><td class="num">20.0%</td><td class="num">22.8%</td><td class="num">19.6%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ul style="margin-top:22px">
+    <li><b>高さは 32 mm 以上、可能なら 40 mm</b>。部品を積み上げれば自然に届く（M5Stack 16 + サーボ 26 で既に 26 mm 以上）</li>
+    <li><b>前後長は 54–80 mm ならほぼ自由</b>。同じ高さの中では差が小さい。ただし 90 mm は落ちるので上限とみなす</li>
+    <li><b>幅は 72 mm 前後で事実上固定</b>。XL330 を軸方向（Y）に 2 個並べると 68 mm 必要で、ここに選択の余地はない</li>
+  </ul>
+
+  <div class="note" style="margin-top:20px">
+    <p>この成功率は<b>合否ではなく余裕の指標</b>。学習を入れれば開ループ 47% の構成でも 100% に達している。低い数字でも動くが、余裕が小さいほど実機での誤差に弱い。</p>
+  </div>
+
+  <p style="margin-top:22px">サーボを筐体内に収めるなら制約 1（ケース突出）は自動的に解決する。ただし<b>出力軸が側壁より外に出ている</b>ことと、<b>筐体内でのヒップ軸の高さ</b>は別途決める必要がある。寸法が決まったら <code>RobotParams</code> の <code>torso_len / torso_width / torso_height / board_mass</code> を書き換えて <code>scripts/basin.py</code> を再実行すれば、同じ指標で比較できる。</p>
+</section>
+
+<section>
+  <h2>未検証</h2>
+  <ul>
+    <li><b>方向制御</b> — 現在の移動報酬は「スタート地点から遠ざかる」だけで、行き先を指定できない。操縦可能にするには目標方位を観測に追加する必要がある</li>
+    <li><b>横転・ジャンプ</b> — タスクは実装済みだが未学習</li>
+    <li><b>脚の弾性</b> — C脚は剛体としてモデル化。ばね特性は未反映</li>
+    <li><b>実機でのサーボ応答遅延・通信遅延</b> — モデルに入っていない</li>
+  </ul>
+</section>
+
+<footer>
+  数値はすべて MuJoCo シミュレーションの実測値（PPO 学習済み方策、評価 25–100 エピソード）。
+  再現手順とコードはリポジトリの README を参照。
+</footer>
+
+</div>

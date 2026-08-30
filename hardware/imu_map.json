@@ -1,0 +1,24 @@
+{
+  "comment": "IMU axes -> simulation body frame (+X fore, +Y left, +Z up)",
+  "matrix": [
+    [
+      0.014095,
+      0.06984,
+      -0.997459
+    ],
+    [
+      -0.999149,
+      -0.037691,
+      -0.016758
+    ],
+    [
+      -0.038765,
+      0.996846,
+      0.069249
+    ]
+  ],
+  "nearest_axis_map": "-z,-x,y",
+  "provenance": "Mean of two scripts.imu_calib runs, then rotated 180 deg about Z. The two runs agreed to 1.11 deg and sat 4.6 deg off axis-alignment in the same direction, so that tilt is a real mounting offset and was kept. The 180 deg turn corrects a fore/aft mix-up during posing: the model's +X points AWAY from the screen (m5stack.stl sits at CAD Z -37.5..-21, and CAD Z is sim X), so 'nose down' meant screen up. Getting front and back swapped swaps left and right with it, which is why the third-pose cross check still passed. Symptom was pitch and roll both inverted in scripts.mirror while level looked correct.",
+  "run_deviation_deg": 1.11,
+  "tilt_from_axis_aligned_deg": 4.64
+}

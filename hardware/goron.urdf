@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<robot name="goron">
+  <mujoco>
+    <compiler meshdir="stl/" discardvisual="false" balanceinertia="true"/>
+  </mujoco>
+  <link name="base_link">
+    <inertial>
+      <origin xyz="-0.000237 0.030193 -0.000854"/>
+      <mass value="0.28590"/>
+      <inertia ixx="3.2346e-04" ixy="4.1388e-07" ixz="-2.2208e-07" iyy="3.4242e-04" iyz="1.3147e-05" izz="2.6914e-04"/>
+    </inertial>
+    <visual><origin xyz="0 0 0"/><geometry><mesh filename="body_bottom.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+    <visual><origin xyz="0 0 0"/><geometry><mesh filename="body_upper.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+    <visual><origin xyz="0 0 0"/><geometry><mesh filename="m5stack.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+    <visual><origin xyz="0 0 0"/><geometry><mesh filename="bat.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+    <visual><origin xyz="0 0 0"/><geometry><mesh filename="servo_left.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+    <visual><origin xyz="0 0 0"/><geometry><mesh filename="servo_right.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+  </link>
+  <joint name="hip_left" type="continuous">
+    <parent link="base_link"/>
+    <child link="leg_left"/>
+    <origin xyz="0 0.035000 0.000000"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="0.52" velocity="10.79"/>
+    <dynamics damping="0.0482"/>
+  </joint>
+  <link name="leg_left">
+    <inertial>
+      <origin xyz="-0.050440 -0.016402 0.003452"/>
+      <mass value="0.00900"/>
+      <inertia ixx="6.0563e-06" ixy="-2.1045e-07" ixz="4.7400e-08" iyy="1.2843e-06" iyz="-9.3787e-08" izz="5.0326e-06"/>
+    </inertial>
+    <visual><origin xyz="0 -0.035000 -0.000000"/><geometry><mesh filename="leg_left.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+    <visual><origin xyz="0 -0.035000 -0.000000"/><geometry><mesh filename="servo_joint_left.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+  </link>
+  <joint name="hip_right" type="continuous">
+    <parent link="base_link"/>
+    <child link="leg_right"/>
+    <origin xyz="0 0.035000 0.000000"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="0.52" velocity="10.79"/>
+    <dynamics damping="0.0482"/>
+  </joint>
+  <link name="leg_right">
+    <inertial>
+      <origin xyz="0.050430 -0.016381 0.003448"/>
+      <mass value="0.00900"/>
+      <inertia ixx="6.0522e-06" ixy="2.1178e-07" ixz="-4.7676e-08" iyy="1.2839e-06" iyz="-9.3014e-08" izz="5.0303e-06"/>
+    </inertial>
+    <visual><origin xyz="0 -0.035000 -0.000000"/><geometry><mesh filename="leg_right.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+    <visual><origin xyz="0 -0.035000 -0.000000"/><geometry><mesh filename="servo_joint_right.stl" scale="0.001 0.001 0.001"/></geometry></visual>
+  </link>
+</robot>
