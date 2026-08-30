@@ -1,0 +1,1215 @@
+<title>脚ロボットのSim2Real実践帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+JP:wght@600;700&family=Noto+Serif+JP:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+:root {
+  --paper:      #F2F4F7;
+  --surface:    #FFFFFF;
+  --sunk:       #E8ECF1;
+  --ink:        #131A24;
+  --ink-2:      #414D5E;
+  --muted:      #667487;
+  --rule:       #D5DBE3;
+  --rule-soft:  #E4E8EE;
+  --accent:     #2F6FB2;
+  --accent-dim: #2F6FB215;
+  --warn:       #B4531F;
+  --warn-dim:   #B4531F14;
+  --ok:         #2E7D52;
+  --code-bg:    #171D26;
+  --code-ink:   #DCE3EC;
+  --code-mut:   #7E8DA1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #12161D;
+    --surface:    #181E27;
+    --sunk:       #1E2530;
+    --ink:        #E4E9F0;
+    --ink-2:      #BAC4D1;
+    --muted:      #8E9CAF;
+    --rule:       #2A323E;
+    --rule-soft:  #222932;
+    --accent:     #5391D6;
+    --accent-dim: #5391D620;
+    --warn:       #D2701F;
+    --warn-dim:   #D2701F1F;
+    --ok:         #2FA482;
+    --code-bg:    #0D1117;
+    --code-ink:   #D6DEE9;
+    --code-mut:   #74839A;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:      #12161D;
+  --surface:    #181E27;
+  --sunk:       #1E2530;
+  --ink:        #E4E9F0;
+  --ink-2:      #BAC4D1;
+  --muted:      #8E9CAF;
+  --rule:       #2A323E;
+  --rule-soft:  #222932;
+  --accent:     #5391D6;
+  --accent-dim: #5391D620;
+  --warn:       #D2701F;
+  --warn-dim:   #D2701F1F;
+  --ok:         #2FA482;
+  --code-bg:    #0D1117;
+  --code-ink:   #D6DEE9;
+  --code-mut:   #74839A;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Source Serif 4", "Noto Serif JP", Georgia, serif;
+  font-size: 17px;
+  line-height: 1.85;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 28px 120px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 56px;
+}
+@media (min-width: 1080px) {
+  .wrap { grid-template-columns: 208px minmax(0, 1fr); }
+}
+
+/* ---------- masthead ---------- */
+.masthead {
+  grid-column: 1 / -1;
+  padding: 88px 0 40px;
+  border-bottom: 2px solid var(--ink);
+}
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 20px;
+}
+h1 {
+  font-family: "Archivo", "Noto Sans JP", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(34px, 5.4vw, 58px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  margin: 0 0 22px;
+}
+.standfirst {
+  font-size: clamp(17px, 2vw, 20px);
+  color: var(--ink-2);
+  max-width: 60ch;
+  margin: 0 0 30px;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 30px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.meta b { color: var(--ink-2); font-weight: 600; }
+
+/* ---------- nav rail ---------- */
+nav.rail { display: none; }
+@media (min-width: 1080px) {
+  nav.rail {
+    display: block;
+    grid-column: 1;
+    align-self: start;
+    position: sticky;
+    top: 32px;
+    padding-top: 56px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  nav.rail ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 13px; }
+  nav.rail a {
+    color: var(--muted);
+    text-decoration: none;
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 6px;
+  }
+  nav.rail a:hover, nav.rail a:focus-visible { color: var(--accent); }
+  nav.rail .n { color: var(--rule); }
+  nav.rail a:hover .n { color: var(--accent); }
+}
+
+main { grid-column: 1; min-width: 0; }
+@media (min-width: 1080px) { main { grid-column: 2; } }
+
+/* ---------- sections ---------- */
+section { padding-top: 64px; scroll-margin-top: 24px; }
+section > * { max-width: 68ch; }
+section > figure, section > .wide, section > .traps { max-width: none; }
+
+h2 {
+  font-family: "Archivo", "Noto Sans JP", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(24px, 3.2vw, 33px);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  margin: 0 0 8px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: baseline;
+}
+h2 .n {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0;
+}
+h3 {
+  font-family: "Archivo", "Noto Sans JP", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.4;
+  margin: 44px 0 4px;
+  color: var(--ink);
+}
+.lede { color: var(--ink-2); margin: 0 0 8px; }
+p { margin: 18px 0; }
+strong { font-weight: 600; }
+a { color: var(--accent); }
+
+ul, ol.body { padding-left: 1.25em; margin: 18px 0; }
+li { margin: 8px 0; }
+
+code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.86em;
+  background: var(--sunk);
+  padding: 0.12em 0.38em;
+  border-radius: 3px;
+}
+
+pre {
+  background: var(--code-bg);
+  color: var(--code-ink);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.72;
+  padding: 20px 22px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 22px 0;
+  max-width: none;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+pre .c { color: var(--code-mut); }
+pre .k { color: #7FB3E8; }
+pre .s { color: #96D2A8; }
+pre .w { color: #E0A76A; }
+
+/* ---------- tables ---------- */
+.wide { overflow-x: auto; margin: 26px 0; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+th, td {
+  text-align: left;
+  padding: 9px 16px 9px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  white-space: nowrap;
+}
+thead th {
+  border-bottom: 1px solid var(--rule);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+td.num { text-align: right; padding-right: 24px; }
+td.was { color: var(--muted); }
+td.now { color: var(--accent); font-weight: 600; }
+td.bad { color: var(--warn); font-weight: 600; }
+
+/* ---------- callouts ---------- */
+.trap {
+  border-left: 3px solid var(--warn);
+  background: var(--warn-dim);
+  padding: 20px 24px;
+  margin: 30px 0;
+  border-radius: 0 5px 5px 0;
+}
+.trap h4 {
+  font-family: "Archivo", "Noto Sans JP", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--warn);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.trap h4::before {
+  content: "落とし穴";
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  border: 1px solid var(--warn);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-weight: 600;
+}
+.trap dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; }
+.trap dt {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding-top: 6px;
+  white-space: nowrap;
+}
+.trap dd { margin: 0; font-size: 15.5px; line-height: 1.7; }
+
+.note {
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  border-radius: 5px;
+  padding: 18px 22px;
+  margin: 26px 0;
+  font-size: 15.5px;
+  line-height: 1.75;
+}
+.note b {
+  font-family: "Archivo", "Noto Sans JP", system-ui, sans-serif;
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+/* ---------- figures ---------- */
+figure { margin: 34px 0; }
+figure svg { display: block; width: 100%; height: auto; }
+.figbox {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 22px 20px 14px;
+  overflow-x: auto;
+}
+figcaption {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--muted);
+  margin-top: 12px;
+  max-width: 74ch;
+}
+figcaption b { color: var(--ink-2); font-weight: 600; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--ink-2);
+  margin: 0 0 14px;
+}
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.swatch { width: 15px; height: 3px; border-radius: 2px; display: inline-block; }
+
+.svg-ink   { fill: var(--ink-2); }
+.svg-mut   { fill: var(--muted); }
+.svg-rule  { stroke: var(--rule); }
+.svg-soft  { stroke: var(--rule-soft); }
+.svg-lab   { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; }
+.svg-tag   { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; font-weight: 600; }
+.svg-box   { fill: var(--surface); stroke: var(--rule); }
+
+/* ---------- closing ---------- */
+.checklist {
+  border-top: 2px solid var(--ink);
+  margin-top: 26px;
+  padding-top: 8px;
+}
+.checklist ol { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+.checklist li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 16px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  margin: 0;
+}
+.checklist li::before {
+  content: counter(step, decimal-leading-zero);
+  grid-column: 1;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--accent);
+  padding-top: 4px;
+}
+/* b と span はどちらも右の列に置く。指定しないと span が次の行の
+   34px 列に落ちて、説明文が縦一列に潰れる */
+.checklist b,
+.checklist span { grid-column: 2; }
+.checklist b {
+  font-family: "Archivo", "Noto Sans JP", system-ui, sans-serif;
+  font-size: 15.5px;
+  line-height: 1.5;
+}
+.checklist span {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+footer {
+  grid-column: 1 / -1;
+  margin-top: 80px;
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">MuJoCo · 強化学習 · 実機デプロイ / 二脚クランクロボット goron の記録</p>
+  <h1>シミュレータで学んだ脚を、<br>本物の床の上で動かすまで</h1>
+  <p class="standfirst">モデルを書き、強化学習で動きを見つけ、実機に載せる。その全工程を、実際に踏んだ数字と失敗つきで追いかけます。教科書に載らないのは、たいてい「気づけなかった間違い」の方です。</p>
+  <div class="meta">
+    <span><b>対象</b> MuJoCo と強化学習をこれから触る人</span>
+    <span><b>題材</b> 胴体＋360°回転する2脚（303.9 g）</span>
+    <span><b>装備</b> M5Stack Core2 · DYNAMIXEL XL330 ×2</span>
+  </div>
+</header>
+
+<nav class="rail" aria-label="目次">
+  <ol>
+    <li><a href="#s0"><span class="n">00</span><span>全体像</span></a></li>
+    <li><a href="#s1"><span class="n">01</span><span>MuJoCo をさわる</span></a></li>
+    <li><a href="#s2"><span class="n">02</span><span>ロボットを書く</span></a></li>
+    <li><a href="#s3"><span class="n">03</span><span>強化学習とは</span></a></li>
+    <li><a href="#s4"><span class="n">04</span><span>回す前の設計解析</span></a></li>
+    <li><a href="#s5"><span class="n">05</span><span>実機を測る</span></a></li>
+    <li><a href="#s6"><span class="n">06</span><span>座標系と規約</span></a></li>
+    <li><a href="#s7"><span class="n">07</span><span>実機に載せる</span></a></li>
+    <li><a href="#s8"><span class="n">08</span><span>デバッグの道具</span></a></li>
+    <li><a href="#s9"><span class="n">09</span><span>残っている宿題</span></a></li>
+    <li><a href="#s10"><span class="n">10</span><span>手順のまとめ</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============ 00 ============ -->
+<section id="s0">
+  <h2><span class="n">00</span><span>全体像 — 6つの工程と、戻る矢印</span></h2>
+  <p class="lede">Sim2Real は一本道ではありません。実機で測った値がモデルに戻り、モデルが変われば方策を学習し直す。この往復が本体です。</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 760 250" role="img" aria-label="モデル作成から実機デプロイまでの工程図。実機での測定と検証が前の工程へ戻る">
+        <g class="svg-lab">
+          <!-- forward chain -->
+          <g>
+            <rect class="svg-box" x="8" y="52" width="106" height="52" rx="4"/>
+            <text class="svg-ink" x="61" y="74" text-anchor="middle" font-weight="600">モデルを書く</text>
+            <text class="svg-mut" x="61" y="91" text-anchor="middle">MJCF / 寸法</text>
+          </g>
+          <g>
+            <rect class="svg-box" x="138" y="52" width="106" height="52" rx="4"/>
+            <text class="svg-ink" x="191" y="74" text-anchor="middle" font-weight="600">設計解析</text>
+            <text class="svg-mut" x="191" y="91" text-anchor="middle">開ループで解けるか</text>
+          </g>
+          <g>
+            <rect class="svg-box" x="268" y="52" width="106" height="52" rx="4"/>
+            <text class="svg-ink" x="321" y="74" text-anchor="middle" font-weight="600">強化学習</text>
+            <text class="svg-mut" x="321" y="91" text-anchor="middle">PPO / 報酬設計</text>
+          </g>
+          <g>
+            <rect class="svg-box" x="398" y="52" width="106" height="52" rx="4"/>
+            <text class="svg-ink" x="451" y="74" text-anchor="middle" font-weight="600">エクスポート</text>
+            <text class="svg-mut" x="451" y="91" text-anchor="middle">重みを C に</text>
+          </g>
+          <g>
+            <rect class="svg-box" x="528" y="52" width="106" height="52" rx="4"/>
+            <text class="svg-ink" x="581" y="74" text-anchor="middle" font-weight="600">実機で実行</text>
+            <text class="svg-mut" x="581" y="91" text-anchor="middle">50 Hz ループ</text>
+          </g>
+          <g>
+            <rect x="658" y="52" width="94" height="52" rx="4" fill="var(--accent-dim)" stroke="var(--accent)"/>
+            <text x="705" y="74" text-anchor="middle" font-weight="600" fill="var(--accent)">測る</text>
+            <text class="svg-mut" x="705" y="91" text-anchor="middle">質量·摩擦·サーボ</text>
+          </g>
+
+          <g stroke="var(--muted)" stroke-width="1.5" fill="none">
+            <path d="M114 78 L134 78" marker-end="url(#ah)"/>
+            <path d="M244 78 L264 78" marker-end="url(#ah)"/>
+            <path d="M374 78 L394 78" marker-end="url(#ah)"/>
+            <path d="M504 78 L524 78" marker-end="url(#ah)"/>
+            <path d="M634 78 L654 78" marker-end="url(#ah)"/>
+          </g>
+
+          <!-- return arrows -->
+          <g stroke="var(--accent)" stroke-width="1.5" fill="none" stroke-dasharray="4 3">
+            <path d="M705 108 L705 150 L61 150 L61 108" marker-end="url(#ahb)"/>
+            <path d="M581 108 L581 186 L321 186 L321 108" marker-end="url(#ahb)"/>
+          </g>
+          <text x="383" y="145" text-anchor="middle" fill="var(--accent)" class="svg-tag">実測値をモデルへ戻す</text>
+          <text x="451" y="204" text-anchor="middle" fill="var(--accent)" class="svg-tag">実機が転んだら学習し直す</text>
+
+          <text class="svg-mut" x="8" y="232">この2本の点線が Sim2Real の実体。左から右へ一度流すだけの工程ではない</text>
+        </g>
+        <defs>
+          <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 1 L7 4 L0 7 z" fill="var(--muted)"/>
+          </marker>
+          <marker id="ahb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 1 L7 4 L0 7 z" fill="var(--accent)"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+    <figcaption><b>図 00</b> — 実線が作る流れ、点線が戻る流れ。この記事の題材では、実機で床の摩擦を測った結果がモデルに戻り、方策を学習し直すところまで2周しています。</figcaption>
+  </figure>
+
+  <h3>題材にする機体</h3>
+  <p>胴体（80×80×72 mm の箱に M5Stack とバッテリー）の左右に、<strong>360°連続回転する脚</strong>が1本ずつ。脚は矢状面（前後方向）にしか動きません。自由度は2つだけです。合計 303.9 g。</p>
+  <p>自由度が2つしかないので、できることは限られます。腹ばいで進む（crawl）、前転しながら進む（forward）、仰向けから起き上がる（selfright）。<strong>二足歩行はできません</strong> — 片脚を上げた瞬間に横方向の支持が点になり、ロール方向の自由度がないので復帰できないからです。この「できないことの見極め」も設計解析の一部です。</p>
+</section>
+
+<!-- ============ 01 ============ -->
+<section id="s1">
+  <h2><span class="n">01</span><span>MuJoCo をさわる</span></h2>
+  <p class="lede">MuJoCo は物理エンジンです。ロボットと世界を XML で書き、それを読み込んで時間を進めます。</p>
+
+  <h3>最小のモデル</h3>
+  <p>まずは箱が落ちるだけのモデルです。これを <code>hello.xml</code> として保存します。</p>
+
+<pre><code>&lt;mujoco&gt;
+  <span class="c">&lt;!-- 物理の設定。timestep は 1 ステップの時間 --&gt;</span>
+  &lt;option timestep=<span class="s">"0.002"</span> gravity=<span class="s">"0 0 -9.81"</span>/&gt;
+
+  &lt;worldbody&gt;
+    <span class="c">&lt;!-- 床。plane は無限平面 --&gt;</span>
+    &lt;geom name=<span class="s">"floor"</span> type=<span class="s">"plane"</span> size=<span class="s">"5 5 0.05"</span>/&gt;
+
+    <span class="c">&lt;!-- 箱。freejoint があると自由に動ける（無いと世界に溶接される） --&gt;</span>
+    &lt;body name=<span class="s">"box"</span> pos=<span class="s">"0 0 0.5"</span>&gt;
+      &lt;freejoint/&gt;
+      &lt;geom type=<span class="s">"box"</span> size=<span class="s">"0.05 0.05 0.05"</span> mass=<span class="s">"0.3"</span>/&gt;
+    &lt;/body&gt;
+  &lt;/worldbody&gt;
+&lt;/mujoco&gt;</code></pre>
+
+  <p>ビューアで開きます。ドラッグで回転、ホイールでズーム。</p>
+<pre><code>uv run python -m mujoco.viewer --mjcf=hello.xml</code></pre>
+
+  <p>Python から動かすときの最小形はこうです。<strong>この3行がすべての土台</strong>で、強化学習の環境も中身はこれの繰り返しです。</p>
+
+<pre><code><span class="k">import</span> mujoco
+
+model = mujoco.MjModel.from_xml_path(<span class="s">"hello.xml"</span>)  <span class="c"># 変わらないもの（形状・質量）</span>
+data  = mujoco.MjData(model)                       <span class="c"># 変わるもの（位置・速度・力）</span>
+
+<span class="k">for</span> _ <span class="k">in</span> range(<span class="w">1000</span>):
+    mujoco.mj_step(model, data)                    <span class="c"># 2 ms 進める</span>
+    print(data.qpos[<span class="w">2</span>])                          <span class="c"># 箱の高さ</span></code></pre>
+
+  <div class="note">
+    <b>model と data の違いは最初に押さえる</b>
+    <code>model</code> は形と質量、<code>data</code> はいまの状態です。同じ <code>model</code> から <code>data</code> を何個も作れば、同じロボットを並列に何体も走らせられます。強化学習で12環境を同時に回せるのはこの構造のおかげです。
+  </div>
+
+  <h3>MJCF と URDF は別物</h3>
+  <p>ロボットの記述形式には URDF（ROS 由来）と MJCF（MuJoCo 固有）があります。MuJoCo は URDF も<strong>読めます</strong>が、読めることと使えることは違います。</p>
+
+  <div class="wide">
+    <table>
+      <thead><tr><th>　</th><th>URDF</th><th>MJCF</th></tr></thead>
+      <tbody>
+        <tr><td>書けるもの</td><td>ロボット単体</td><td>ロボット＋<b>世界</b></td></tr>
+        <tr><td>床</td><td class="was">無い</td><td>plane で定義</td></tr>
+        <tr><td>重力・タイムステップ</td><td class="was">無い</td><td>option で定義</td></tr>
+        <tr><td>アクチュエータ</td><td class="was">実質無い</td><td>position / motor など</td></tr>
+        <tr><td>接触パラメータ</td><td class="was">無い</td><td>solref / solimp / friction</td></tr>
+        <tr><td>ルートの扱い</td><td class="was">世界に溶接</td><td>freejoint を明示</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>実務上は<strong>「URDF は CAD から質量・慣性を取り込む入口、MJCF は学習に使う本体」</strong>と分けるのが素直です。この題材でも、CAD の STL から慣性テンソルを積分した URDF を作り、学習用の MJCF はパラメトリックに生成しています。</p>
+
+  <div class="trap">
+    <h4>freejoint を消すと自己衝突が始まる</h4>
+    <dl>
+      <dt>症状</dt><dd>サーボ同定のために胴体を固定しようと <code>&lt;freejoint&gt;</code> を消したら、脚が指令と逆向きに吹き飛んだ。</dd>
+      <dt>原因</dt><dd>ルートに関節が無いと、MuJoCo はその body を<strong>世界に融合</strong>する。MuJoCo の接触除外規則は「親子間は除外、ただし親が世界の場合を除く」なので、除外が効かなくなり、サーボの箱と脚のハブが押し合っていた。</dd>
+      <dt>見つけ方</dt><dd><code>data.ncon</code>（接触の数）を見る。学習用モデルは 0 だったのに、細工したモデルでは 12 になっていた。おかしいと思ったらまず接触数を数える。</dd>
+    </dl>
+  </div>
+</section>
+
+<!-- ============ 02 ============ -->
+<section id="s2">
+  <h2><span class="n">02</span><span>ロボットをモデルにする</span></h2>
+  <p class="lede">XML を手書きすると、寸法を変えるたびに全部書き直すことになります。<strong>Python で生成する</strong>のが実用的です。</p>
+
+  <h3>寸法をデータクラスに追い出す</h3>
+<pre><code><span class="k">@dataclass</span>(frozen=<span class="k">True</span>)
+<span class="k">class</span> RobotParams:
+    torso_len:    float = <span class="w">0.080</span>   <span class="c"># 前後（この機体では転がる方向）</span>
+    torso_width:  float = <span class="w">0.080</span>
+    torso_height: float = <span class="w">0.072</span>
+    hip_y_gap:    float = <span class="w">0.012</span>   <span class="c"># 胴体側面からヒップ軸までの張り出し</span>
+    servo_stall_torque: float = <span class="w">0.52</span>   <span class="c"># N·m</span>
+    servo_no_load_speed: float = <span class="w">10.79</span> <span class="c"># rad/s</span>
+
+    <span class="k">@property</span>
+    <span class="k">def</span> hip_y(self) -&gt; float:
+        <span class="s">"""胴体中心からヒップ軸までの距離"""</span>
+        <span class="k">return</span> self.torso_width / <span class="w">2</span> + self.hip_y_gap
+
+    <span class="k">@property</span>
+    <span class="k">def</span> leg_clears_torso(self) -&gt; bool:
+        <span class="s">"""脚が胴体の外側を通れるか。通れないと 360° 回転が成立しない"""</span>
+        <span class="k">return</span> self.hip_y &gt; self.torso_width / <span class="w">2</span> + self.leg_radius
+
+<span class="k">def</span> build_mjcf(p: RobotParams) -&gt; str:
+    <span class="k">return</span> f<span class="s">"""&lt;mujoco&gt; ... size="{p.torso_len/2:.5f} ..." ... &lt;/mujoco&gt;"""</span></code></pre>
+
+  <p>こうしておくと、寸法のスイープも、実測値の反映も、<strong>1箇所を変えるだけ</strong>で済みます。さらに <code>leg_clears_torso</code> のような<strong>成立条件をプロパティとして書いておき、学習の起動時に検査する</strong>と、「そもそも動けない機体で何時間も学習していた」を防げます。</p>
+
+  <h3>衝突形状はビジュアルと同じにしない</h3>
+  <p>ここが初心者のいちばんの落とし穴です。<strong>MuJoCo はメッシュを凸包として当てます。</strong></p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 760 240" role="img" aria-label="渦巻き型の脚と、その凸包が円板になる比較図">
+        <g class="svg-lab">
+          <text class="svg-ink" x="120" y="22" text-anchor="middle" font-weight="600">実際の脚（渦巻き）</text>
+          <text class="svg-ink" x="380" y="22" text-anchor="middle" font-weight="600">生メッシュの当たり判定＝凸包</text>
+          <text class="svg-ink" x="640" y="22" text-anchor="middle" font-weight="600">凸分解（ウェッジの和）</text>
+
+          <!-- real leg -->
+          <g transform="translate(120,130)">
+            <circle r="74" fill="none" class="svg-soft" stroke-dasharray="3 4"/>
+            <circle r="18" fill="var(--accent-dim)" stroke="var(--accent)" stroke-width="1.5"/>
+            <path d="M 0 -18 A 18 18 0 0 1 16 -8 A 40 40 0 0 1 30 40 A 60 60 0 0 1 -20 71 L -26 60 A 50 50 0 0 0 20 34 A 30 30 0 0 0 8 -2 A 18 18 0 0 0 0 -6 Z"
+                  fill="var(--accent)" opacity="0.85"/>
+            <circle r="3" fill="var(--ink)"/>
+            <text class="svg-mut" x="0" y="104" text-anchor="middle">腕は1本。他の方向は空</text>
+          </g>
+
+          <!-- hull -->
+          <g transform="translate(380,130)">
+            <circle r="74" fill="var(--warn)" opacity="0.28" stroke="var(--warn)" stroke-width="1.5"/>
+            <circle r="3" fill="var(--ink)"/>
+            <text x="0" y="104" text-anchor="middle" fill="var(--warn)" class="svg-tag">半径74mmの円板＝車輪</text>
+          </g>
+
+          <!-- decomposition -->
+          <g transform="translate(640,130)">
+            <circle r="74" fill="none" class="svg-soft" stroke-dasharray="3 4"/>
+            <g fill="var(--ok)" opacity="0.8" stroke="var(--surface)" stroke-width="1">
+              <path d="M0 0 L 16 -9 L 30 -2 L 12 8 Z"/>
+              <path d="M12 8 L 30 -2 L 38 16 L 17 20 Z"/>
+              <path d="M17 20 L 38 16 L 38 38 L 18 32 Z"/>
+              <path d="M18 32 L 38 38 L 26 58 L 12 43 Z"/>
+              <path d="M12 43 L 26 58 L 4 68 L 0 50 Z"/>
+              <path d="M0 50 L 4 68 L -20 71 L -14 53 Z"/>
+              <circle r="18" fill="var(--ok)" opacity="0.6"/>
+            </g>
+            <circle r="3" fill="var(--ink)"/>
+            <text class="svg-mut" x="0" y="104" text-anchor="middle">凸片の和なら弧をなぞれる</text>
+          </g>
+        </g>
+      </svg>
+    </div>
+    <figcaption><b>図 02</b> — 実測すると、この脚は半径 18〜73.7 mm に腕が1本あるだけで、大半の方向には何もありません。凸包にすると全方向が半径74 mmまで埋まり、<b>接地点が弧に沿って移動する</b>という脚の存在理由が消えます。角度方向のウェッジに切って凸片の和にすれば、その性質が残ります。</figcaption>
+  </figure>
+
+  <div class="note">
+    <b>指針</b>
+    当たり判定は「見た目に似せる」のではなく「<b>接触の性質を保つ</b>」ように作ります。箱や円柱で足りるなら、その方が速くて安定します。凸でない形が本質なら、凸分解します。
+  </div>
+</section>
+
+<!-- ============ 03 ============ -->
+<section id="s3">
+  <h2><span class="n">03</span><span>強化学習とは — 観測・行動・報酬</span></h2>
+  <p class="lede">やることは1つです。<strong>観測</strong>を受け取って<strong>行動</strong>を返す関数を、<strong>報酬</strong>の合計が最大になるように調整する。それだけです。</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 760 210" role="img" aria-label="方策と環境のあいだで観測・行動・報酬が循環する図">
+        <g class="svg-lab">
+          <rect class="svg-box" x="60" y="62" width="180" height="76" rx="5"/>
+          <text class="svg-ink" x="150" y="94" text-anchor="middle" font-weight="600" font-size="13">方策（ニューラルネット）</text>
+          <text class="svg-mut" x="150" y="114" text-anchor="middle">14 → 128 → 128 → 2</text>
+
+          <rect class="svg-box" x="520" y="62" width="180" height="76" rx="5"/>
+          <text class="svg-ink" x="610" y="94" text-anchor="middle" font-weight="600" font-size="13">環境</text>
+          <text class="svg-mut" x="610" y="114" text-anchor="middle">MuJoCo または実機</text>
+
+          <g stroke="var(--accent)" stroke-width="1.6" fill="none">
+            <path d="M240 88 L512 88" marker-end="url(#ah2)"/>
+          </g>
+          <text x="376" y="80" text-anchor="middle" fill="var(--accent)" class="svg-tag">行動 2次元 [-1, 1]</text>
+          <text class="svg-mut" x="376" y="106" text-anchor="middle">目標角の増分</text>
+
+          <g stroke="var(--muted)" stroke-width="1.6" fill="none">
+            <path d="M520 128 L248 128" marker-end="url(#ah3)"/>
+          </g>
+          <text class="svg-ink" x="384" y="150" text-anchor="middle" class="svg-tag">観測 14次元 ＋ 報酬</text>
+
+          <text class="svg-mut" x="60" y="180">重要なのは、この矢印の中身が <tspan font-weight="600" fill="var(--accent)">シミュレータでも実機でも同じ</tspan> であること。だから学習した方策がそのまま載る</text>
+        </g>
+        <defs>
+          <marker id="ah2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 1 L7 4 L0 7 z" fill="var(--accent)"/></marker>
+          <marker id="ah3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 1 L7 4 L0 7 z" fill="var(--muted)"/></marker>
+        </defs>
+      </svg>
+    </div>
+    <figcaption><b>図 03</b> — 方策は 14 個の数を受け取って 2 個の数を返すだけの関数です。学習が終われば重みは固定なので、C 言語に書き出してマイコンで動かせます。</figcaption>
+  </figure>
+
+  <h3>観測は「実機で測れる量」だけで組む</h3>
+  <p>これが Sim2Real の最重要ルールです。シミュレータでは何でも読めますが、<strong>実機で読めない値を観測に入れた瞬間、その方策は実機に載りません</strong>。</p>
+
+  <div class="wide">
+    <table>
+      <thead><tr><th>index</th><th>内容</th><th>実機での取得元</th></tr></thead>
+      <tbody>
+        <tr><td>0:3</td><td>重力方向（胴体座標系）</td><td>IMU 加速度計</td></tr>
+        <tr><td>3:6</td><td>角速度 rad/s</td><td>IMU ジャイロ</td></tr>
+        <tr><td>6:10</td><td>sin(qL), sin(qR), cos(qL), cos(qR)</td><td>サーボの絶対エンコーダ</td></tr>
+        <tr><td>10:12</td><td>クランク角速度（正規化）</td><td>サーボの速度フィードバック</td></tr>
+        <tr><td>12:14</td><td>サーボトルク（正規化）</td><td>サーボの電流</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><strong>意図的に入れていないもの</strong>があります。胴体の位置とヨー角です。実機では測れないうえ、どのタスクにも不要だからです。</p>
+
+  <p>角度を <code>sin</code>/<code>cos</code> で入れているのにも理由があります。この関節は回り続けるので、生の角度だと <strong>1周ごとに不連続になり、値も無限に増えます</strong>。sin/cos なら連続で、有界です。</p>
+
+  <h3>行動は「増分」にして、先走りを止める</h3>
+<pre><code><span class="c"># 目標角を増分で動かし、実測角から max_lead 以内に制限する</span>
+self.targets = np.clip(
+    self.targets + action * self.max_delta,   <span class="c"># 飽和時に無負荷速度になるスケール</span>
+    angle - self.max_lead,                    <span class="c"># ← これが無いと壊れる</span>
+    angle + self.max_lead,
+)</code></pre>
+
+  <p>この <code>clip</code> は飾りではありません。無いと<strong>脚が引っかかったときに目標角が無限に先走り</strong>、障害が外れても数秒間あらぬ方向へ回り続けます（ワインドアップ）。実機でも必要なガードです。</p>
+
+  <h3>報酬ハッキングは「起きるもの」として設計する</h3>
+  <p>強化学習は報酬を最大化します。<strong>あなたが意図したことではなく、書いたことを</strong>最大化します。この題材でも2回起きました。</p>
+
+  <div class="trap">
+    <h4>成功するとエピソードが終わるので、成功しない方が儲かる</h4>
+    <dl>
+      <dt>症状</dt><dd>報酬が 193 → 1006 に増えたのに、成功率が 100% → 0% に落ちた。</dd>
+      <dt>原因</dt><dd>成功ボーナスが定額 +100 で、成功するとエピソードが終わる。一方ゴール姿勢に留まれば 3.0/step × 残り380step ≈ 1150 もらえる。<strong>サボる方が10倍儲かる</strong>。方策はゴールに到達した上で、1〜4ステップごとに<strong>わざとゴール条件を壊し続けた</strong>。</dd>
+      <dt>見つけ方</dt><dd>報酬と成功率を<strong>別々に</strong>記録していたから気づけた。報酬だけ見ていたら「うまく学習できている」と誤読していた。</dd>
+    </dl>
+  </div>
+
+  <p>修正は「成功時に<strong>残りエピソード分を払い出す</strong>」ことでした。これで留まる価値と等しくなり、労力と時間のペナルティのぶん、早く終える方が厳密に有利になります。</p>
+
+  <div class="trap">
+    <h4>「立っている」を1ステップずつ払うと、立たずに寄りかかる</h4>
+    <dl>
+      <dt>症状</dt><dd>「立つ」タスクで報酬が 463 → 4418 に伸びたのに、成功率（2秒連続で立つ）は最初から最後まで 0%。</dd>
+      <dt>原因</dt><dd>報酬に「姿勢の直立度」の項があり、そこから大半が入っていた。方策は<strong>胴体の角を床につけ、脚を下に折り込んで寄りかかる</strong>静的に安定な姿勢を発見。倒立振子を制御する必要がなく、報酬はほぼ満額。</dd>
+      <dt>見つけ方</dt><dd>報酬の内訳を項ごとに分解して、どの項から入っているかを見た。動画で姿勢を確認したら一目瞭然だった。</dd>
+    </dl>
+  </div>
+
+  <p>修正は<strong>高さそのものに、二乗で払う</strong>ことです。寄りかかり姿勢は 48 mm、立位は 80 mm。線形だと 48 mm でも3割入りますが、二乗にすると1割以下に落ちます。</p>
+
+  <div class="note">
+    <b>報酬設計の経験則</b>
+    「望ましい状態」にフラグで払うと、フラグの境界を跨ぐ細かい振動で稼がれます。<b>物理量そのもの</b>（高さ、距離）に払うと、抜け道が減ります。それでも抜けられるときは、報酬ではなく<b>構造</b>で塞ぎます（例：転倒したらエピソードを終了する）。
+  </div>
+</section>
+
+<!-- ============ 04 ============ -->
+<section id="s4">
+  <h2><span class="n">04</span><span>学習を回す前にやる設計解析</span></h2>
+  <p class="lede">報酬をいじる前に確かめることがあります。<strong>そもそもこの機体で解けるのか</strong>。</p>
+
+  <p>やり方は単純です。<strong>ランダムな開ループ行動</strong>（0.4秒ごとに乱数を選んで保持）を何百回か流し、タスクのゴール判定を満たす割合を見ます。</p>
+
+<pre><code>best = []
+<span class="k">for</span> ep <span class="k">in</span> range(<span class="w">150</span>):
+    env.reset(seed=int(rng.integers(<span class="w">1</span> &lt;&lt; <span class="w">30</span>)))
+    a = rng.uniform(-<span class="w">1</span>, <span class="w">1</span>, <span class="w">2</span>)
+    <span class="k">for</span> step <span class="k">in</span> range(env.task.max_steps):
+        <span class="k">if</span> step % <span class="w">20</span> == <span class="w">0</span>:              <span class="c"># 0.4 秒ごとに選び直す</span>
+            a = rng.uniform(-<span class="w">1</span>, <span class="w">1</span>, <span class="w">2</span>)
+        _, _, term, trunc, info = env.step(a)
+    best.append(info[<span class="s">"best_held_s"</span>])</code></pre>
+
+  <p>「立つ」タスクで実際に出た結果です。</p>
+
+  <div class="wide">
+    <table>
+      <thead><tr><th>判定</th><th class="num">割合</th><th>読み方</th></tr></thead>
+      <tbody>
+        <tr><td>一度でも立てた</td><td class="num now">99.3%</td><td>立ち上がる動作自体は簡単。トルクは足りている</td></tr>
+        <tr><td>0.1 秒以上</td><td class="num">18.7%</td><td>勾配がつながっている</td></tr>
+        <tr><td>0.5 秒以上</td><td class="num bad">0.0%</td><td>保持は制御で解くべき部分</td></tr>
+        <tr><td>最長</td><td class="num">0.20 s</td><td>倒立振子の時定数 88 ms の 2.3 倍</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>この分布が<strong>学習に投げてよいサイン</strong>です。「一度も達成しない」なら報酬か機体が間違っています。「最初から100%」ならタスクが簡単すぎます。<strong>簡単な部分と難しい部分が分かれている</strong>のが理想です。</p>
+
+  <div class="note">
+    <b>「1回でも成功したか」を見てはいけない</b>
+    接触が支配的な系では、カオス的なまぐれ当たりが出ます。この題材でも、開発中に見つけた唯一の成功シーケンスは、初期速度に 1e-4 rad/s のノイズを乗せただけで 0/10 に崩壊しました。<b>成功率</b>で見てください。方策が再現できる幅のある解でなければ意味がありません。
+  </div>
+</section>
+
+<!-- ============ 05 ============ -->
+<section id="s5">
+  <h2><span class="n">05</span><span>実機を測る — Sim2Real の本体</span></h2>
+  <p class="lede">シミュレータの数字は、たいていデータシートか推定です。実機と合わせるには測るしかありません。<strong>何を測るべきか</strong>には順番があります。</p>
+
+  <h3>この題材で、推定がどれだけ外れていたか</h3>
+  <div class="wide">
+    <table>
+      <thead><tr><th>項目</th><th class="num">推定</th><th class="num">実測</th><th>外れた理由</th></tr></thead>
+      <tbody>
+        <tr><td>脚1本の質量</td><td class="num was">20 g</td><td class="num now">9 g</td><td>印刷部品はスカスカ。体積×密度は過大評価</td></tr>
+        <tr><td>位置ゲイン kp</td><td class="num was">5.0</td><td class="num now">0.673</td><td>データシートから推定できない内部量</td></tr>
+        <tr><td>ローター慣性</td><td class="num was">1.0e-8</td><td class="num now">2.26e-8</td><td>コード中に「要実機同定」と書かれていた</td></tr>
+        <tr><td>乾性摩擦</td><td class="num bad">モデルに無し</td><td class="num now">0.00877 N·m</td><td>粘性減衰しか無く、項自体が欠けていた</td></tr>
+        <tr><td>床摩擦</td><td class="num was">1.0</td><td class="num now">0.302</td><td>既定値のまま</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>質量 — 秤で測る。ただし内訳に注意</h3>
+  <p>脚が想定の半分以下だったのは、<strong>3Dプリント部品がスパースインフィル</strong>だからです。メッシュ体積 13.95 cm³ × PLA 1.24 g/cm³ = 17.3 g のはずが、実測 9 g。実効密度は 0.65 g/cm³ でした。</p>
+  <p>合計の誤差は2%しかありませんでしたが、<strong>脚の慣性は振り出しの力学を支配する</strong>ので、こちらの方が効きます。慣性テンソルは CAD メッシュから積分できるので、<strong>実測するのは質量だけでよく、分布はメッシュに任せられます</strong>。</p>
+
+  <h3>サーボ — ステップ応答を合わせ込む</h3>
+  <p>最初は「電流からトルク定数を求めて物理定数を個別に同定」しようとして、行き詰まりました。</p>
+
+  <div class="trap">
+    <h4>電流が立ち上がる前に脚が動き出す</h4>
+    <dl>
+      <dt>症状</dt><dd>目標角を 25° / 60° / 120° と変えても、脚が静止している間の電流がどれも 180 mA 前後で同じだった。</dd>
+      <dt>原因</dt><dd>電流の立ち上がりに約 11 ms かかるのに、脚は 13 ms で動き出す。<strong>指令された電流に達する前に動き始める</strong>ので、静止中の値は制御ゲインの情報を持っていない。</dd>
+      <dt>見つけ方</dt><dd>ステップ幅を振って、静止中の電流が幅に比例するかを確かめた。比例しなかった時点で、この方法は使えないと分かった。</dd>
+    </dl>
+  </div>
+
+  <p>方針を変えました。<strong>物理定数を個別に同定するのをやめ、シミュレータの応答が実測の応答に合うようにパラメータを合わせ込む</strong>。sim2real で意味があるのは「目標角を動かしたとき脚がどう動くか」であって、内部の電流ではないからです。</p>
+
+<pre><code><span class="k">def</span> cost(x):
+    kp, armature, damping, friction = np.exp(x)   <span class="c"># 正の量は対数で扱う</span>
+    m = build(kp, armature, damping, friction)
+    err = [(simulate(m, step, t) - measured) / abs(step)
+           <span class="k">for</span> step, t, measured <span class="k">in</span> runs]      <span class="c"># 10本の実測軌道</span>
+    <span class="k">return</span> np.sqrt(np.mean(np.concatenate(err) ** <span class="w">2</span>))
+
+res = minimize(cost, x0, method=<span class="s">"Nelder-Mead"</span>)</code></pre>
+
+  <figure>
+    <div class="figbox">
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--ink-2)"></i>実測（実機）</span>
+        <span><i class="swatch" style="background:var(--warn)"></i>同定前のモデル</span>
+        <span><i class="swatch" style="background:var(--accent)"></i>同定後のモデル</span>
+      </div>
+      <svg viewBox="0 0 760 288" role="img" aria-label="25度ステップ入力に対する応答。実測、同定前モデル、同定後モデルの3本">
+        <g class="svg-lab">
+          <g class="svg-soft" stroke-width="1">
+            <line x1="62" y1="250" x2="700" y2="250"/>
+            <line x1="62" y1="174.7" x2="700" y2="174.7"/>
+            <line x1="62" y1="99.3" x2="700" y2="99.3"/>
+            <line x1="62" y1="24" x2="700" y2="24"/>
+          </g>
+          <line x1="62" y1="61.7" x2="700" y2="61.7" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 4"/>
+          <text class="svg-mut" x="704" y="65">目標 25°</text>
+
+          <g class="svg-mut" text-anchor="end">
+            <text x="54" y="254">0</text><text x="54" y="178.7">10</text>
+            <text x="54" y="103.3">20</text><text x="54" y="28">30</text>
+          </g>
+          <g class="svg-mut" text-anchor="middle">
+            <text x="62" y="268">0</text><text x="221.5" y="268">0.3</text>
+            <text x="381" y="268">0.6</text><text x="540.5" y="268">0.9</text><text x="700" y="268">1.2 s</text>
+          </g>
+          <text class="svg-mut" x="8" y="18">角度 [deg]</text>
+
+          <g fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+            <polyline stroke="var(--warn)" points="62.0,250.0 72.6,210.8 83.2,136.0 93.8,56.4 104.4,35.8 116.0,60.4 126.6,69.7 137.2,63.7 147.8,59.3 158.4,60.5 169.9,62.3 180.5,62.1 191.1,61.5 201.8,61.5 213.3,61.7 245.1,61.7 299.1,61.7 385.7,61.7 493.6,61.7 613.0,61.7 699.6,61.7"/>
+            <polyline stroke="var(--accent)" points="62.0,250.0 72.6,238.6 83.2,214.4 93.8,185.2 104.4,156.5 116.0,128.6 126.6,107.9 137.2,92.0 147.8,80.4 158.4,72.5 169.9,67.1 180.5,64.5 191.1,63.2 201.8,62.9 213.3,62.9 245.1,62.8 299.1,62.8 385.7,62.7 493.6,62.6 613.0,62.5 699.6,62.4"/>
+            <polyline stroke="var(--ink-2)" stroke-dasharray="5 3" points="62.0,250.0 72.6,244.0 83.2,220.8 93.8,190.3 104.4,159.1 116.0,130.0 126.6,108.1 137.2,92.9 147.8,81.6 158.4,75.0 169.9,70.3 180.5,67.0 191.1,65.7 201.8,65.1 213.3,64.4 245.1,64.4 299.1,64.4 385.7,64.4 493.6,64.4 613.0,64.4 699.6,64.4"/>
+          </g>
+
+          <text class="svg-tag" x="128" y="30" fill="var(--warn)">同定前：3倍速く、行き過ぎる</text>
+          <text class="svg-tag" x="250" y="88" fill="var(--accent)">同定後：実測にほぼ重なる</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption><b>図 05</b> — 目標角を 25° 動かしたときの応答。同定前のモデルは <b>立ち上がり 40 ms・行き過ぎ 28°</b> と、実測（128 ms・行き過ぎ無し）とは別物の機械でした。10本の軌道に合わせ込んだ結果、軌道誤差 RMS は <b>17.0% → 2.5%</b>。フィットに使っていない反対側の脚でも 3.74° → 0.32° RMS に改善しています。</figcaption>
+  </figure>
+
+  <div class="note">
+    <b>同定でいちばん大事なのは「使わなかったデータで確かめる」</b>
+    10本すべてでフィットして「よく合いました」は何も言っていません。<b>片方の脚のデータをフィットから外しておき、そこで誤差を測る</b>。これが過適合していないことの唯一の証拠になります。
+  </div>
+
+  <h3>摩擦 — 床を傾けられないときの測り方</h3>
+  <p>教科書どおりなら、板に載せて傾け、滑り出す角度 θ から μ = tan θ です。しかし<strong>実際に走らせる床は傾けられません</strong>。本の表紙で測っても「PLA と本の表紙」の値が出るだけです。</p>
+  <p>そこで<strong>滑走減速法</strong>を使います。ロボットを床の上で手で押し、滑って止まるまでの加速度計を読みます。滑走中は水平方向に摩擦しか働かないので、<strong>加速度計が示す「見かけの上方向」が鉛直から atan(μ) だけ傾きます</strong>。傾斜台と数学的に同じで、板の代わりにロボットを滑らせるだけです。</p>
+
+  <div class="wide">
+    <table>
+      <thead><tr><th>回</th><th class="num">滑走時間</th><th class="num">傾き</th><th class="num">μ</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td class="num">675 ms</td><td class="num">16.10°</td><td class="num">0.289</td></tr>
+        <tr><td>2</td><td class="num">403 ms</td><td class="num">17.09°</td><td class="num">0.307</td></tr>
+        <tr><td>3</td><td class="num">748 ms</td><td class="num">17.24°</td><td class="num">0.310</td></tr>
+        <tr><td><b>平均</b></td><td class="num">—</td><td class="num">—</td><td class="num now">0.302 ± 0.010</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="trap">
+    <h4>3回とも完全に同じ値が出たら、それは信号ではない</h4>
+    <dl>
+      <dt>症状</dt><dd>最初の測定で 3回とも μ = 0.010 と<strong>完全一致</strong>した。</dd>
+      <dt>原因</dt><dd>2つ重なっていた。①ファームのバッファが 0.45 秒で埋まりきり、要求した3秒のうち<strong>滑走が記録に入っていなかった</strong>。②検出ロジックが「最も長く安定した区間」を探していたので、<strong>静止区間</strong>に引っかかっていた。</dd>
+      <dt>見つけ方</dt><dd>μ=0.01 は氷より滑る。<strong>物理的にあり得ない値</strong>だったので疑った。加えて、傾き 0.55° は加速度計のノイズ（σ≈0.5°）とほぼ同じだった。</dd>
+    </dl>
+  </div>
+
+  <p>教訓は2つあります。<strong>測定値がノイズフロアと同じ桁なら、それは測れていません。</strong>そして<strong>再現性が高すぎるのは、同じものを測り続けている疑いのサインです。</strong>直した後は 0.289 / 0.307 / 0.310 と、適度にばらつきました。</p>
+</section>
+
+<!-- ============ 06 ============ -->
+<section id="s6">
+  <h2><span class="n">06</span><span>座標系と規約 — いちばん時間を溶かす場所</span></h2>
+  <p class="lede">物理パラメータより先に、<strong>どちらが前か</strong>で間違えます。しかも間違いが自己整合するので、検算をすり抜けます。</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 760 250" role="img" aria-label="CADフレーム、シミュレータフレーム、IMUフレームの対応関係">
+        <g class="svg-lab">
+          <g transform="translate(80,60)">
+            <text class="svg-ink" x="60" y="-16" text-anchor="middle" font-weight="600">CAD 組立フレーム</text>
+            <g stroke-width="1.8" fill="none">
+              <path d="M60 90 L60 30" stroke="var(--ok)" marker-end="url(#a4)"/>
+              <path d="M60 90 L120 90" stroke="var(--warn)" marker-end="url(#a5)"/>
+              <path d="M60 90 L20 122" stroke="var(--accent)" marker-end="url(#a6)"/>
+            </g>
+            <text x="60" y="24" text-anchor="middle" fill="var(--ok)" class="svg-tag">+Y 上</text>
+            <text x="128" y="94" fill="var(--warn)" class="svg-tag">+X</text>
+            <text x="2" y="136" fill="var(--accent)" class="svg-tag">+Z</text>
+            <text class="svg-mut" x="60" y="158" text-anchor="middle">STL はこの向き（mm）</text>
+          </g>
+
+          <g transform="translate(320,60)">
+            <text class="svg-ink" x="60" y="-16" text-anchor="middle" font-weight="600">シミュレータ</text>
+            <g stroke-width="1.8" fill="none">
+              <path d="M60 90 L60 30" stroke="var(--accent)" marker-end="url(#a6)"/>
+              <path d="M60 90 L120 90" stroke="var(--ok)" marker-end="url(#a4)"/>
+              <path d="M60 90 L20 122" stroke="var(--warn)" marker-end="url(#a5)"/>
+            </g>
+            <text x="60" y="24" text-anchor="middle" fill="var(--accent)" class="svg-tag">+Z 上</text>
+            <text x="128" y="94" fill="var(--ok)" class="svg-tag">+Y 左</text>
+            <text x="2" y="136" fill="var(--warn)" class="svg-tag">+X 前</text>
+            <text class="svg-mut" x="60" y="158" text-anchor="middle">観測・方策はこの向き</text>
+          </g>
+
+          <g transform="translate(560,60)">
+            <text class="svg-ink" x="60" y="-16" text-anchor="middle" font-weight="600">IMU（基板）</text>
+            <rect class="svg-box" x="16" y="52" width="88" height="60" rx="3"/>
+            <text class="svg-mut" x="60" y="80" text-anchor="middle">実測で 4.6°</text>
+            <text class="svg-mut" x="60" y="96" text-anchor="middle">傾いて実装</text>
+            <text class="svg-mut" x="60" y="158" text-anchor="middle">3姿勢の較正で行列を得る</text>
+          </g>
+
+          <g stroke="var(--muted)" stroke-width="1.4" fill="none">
+            <path d="M212 150 L306 150" marker-end="url(#a7)"/>
+            <path d="M452 150 L546 150" marker-end="url(#a7)" stroke-dasharray="4 3"/>
+          </g>
+          <text class="svg-mut" x="259" y="143" text-anchor="middle">巡回置換</text>
+          <text class="svg-mut" x="499" y="143" text-anchor="middle">較正行列</text>
+
+          <text class="svg-mut" x="24" y="228">sim_x = CAD_z,  sim_y = CAD_x,  sim_z = CAD_y  — 偶置換なので回転の向きは保存される（鏡像ではない）</text>
+        </g>
+        <defs>
+          <marker id="a4" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 1 L7 4 L0 7 z" fill="var(--ok)"/></marker>
+          <marker id="a5" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 1 L7 4 L0 7 z" fill="var(--warn)"/></marker>
+          <marker id="a6" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 1 L7 4 L0 7 z" fill="var(--accent)"/></marker>
+          <marker id="a7" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 1 L7 4 L0 7 z" fill="var(--muted)"/></marker>
+        </defs>
+      </svg>
+    </div>
+    <figcaption><b>図 06</b> — 座標系は3つあります。CAD（STL の向き）、シミュレータ（観測と方策の向き）、IMU（基板の向き）。前2つは設計時に決まる固定の変換、最後の1つは<b>実測でしか分かりません</b>。</figcaption>
+  </figure>
+
+  <h3>IMU の向きは3姿勢で決まる</h3>
+  <p>静止した加速度計は「世界の上方向を、IMU の軸で表したもの」を返します。ということは、<strong>body 座標系での上方向が既知の姿勢で持てば、読み値がその body 軸を IMU 座標で書いたものそのもの</strong>になります。2姿勢で2軸が決まり、3軸目は外積で決まります。3姿勢目は検算に使えます。</p>
+
+  <div class="trap">
+    <h4>前後を取り違えると、左右も一緒に反転して、検算が通ってしまう</h4>
+    <dl>
+      <dt>症状</dt><dd>較正した IMU 行列を入れたら、<strong>水平では正しいのにピッチとロールが両方逆</strong>になった。</dd>
+      <dt>原因</dt><dd>「鼻先を下に」という指示に対し、画面のある側を前だと思って姿勢を作った。この機体はモデルの +X が<strong>画面と反対</strong>を向く。前後が逆になれば左右も逆になるので、行列全体が Z 軸まわりに 180° 回っていた。</dd>
+      <dt>見つけ方</dt><dd>「水平は正しいのに傾けると両方逆」は Z 軸まわり 180° ズレの<strong>固有の症状</strong>。合成データで再現して確認した。<strong>3姿勢目の検算は通ってしまう</strong> — 2つの誤りが打ち消し合うため、この検算では検出できない。</dd>
+    </dl>
+  </div>
+
+  <p>教訓は「<strong>姿勢を言葉で指示するときは、機体の『前』ではなく、見える特徴で言う</strong>」ことです。この題材では以後「画面が上を向くように」と書き直しました。</p>
+
+  <h3>関節の原点は、機械的に再現できる姿勢から取る</h3>
+  <p>方策の観測には <code>sin(q)</code>, <code>cos(q)</code> が入っています。つまり方策は<strong>クランクの絶対位相を見て「いま押すべきか」を判断している</strong>。実機のサーボの0度は「組立時にホーンがスプラインのどの歯に噛んだか」で決まる、脚の向きとは無関係な値です。ここがズレると方策は空を蹴ります。</p>
+  <p>最初は CAD 姿勢を目分量で作っていましたが、再現性がありません。<strong>「胴体を床に伏せ、両脚の先端が床に触れる姿勢」</strong>に変えました。手の感触で分かり、機械的に再現できます。この姿勢がモデル上どのクランク角に当たるかは計算で出せます（この機体では 279.6°）。</p>
+
+  <div class="note">
+    <b>基準姿勢を選ぶときの条件</b>
+    ①<b>再現できる</b>（機械的な当たりや接地で決まる）、②<b>モデル上の角度を計算できる</b>、③<b>見分けがつく</b>。この機体では床と交わる角度がもう1つ（62.1°）ありましたが、そちらは<b>腕の途中が当たるだけで先端は浮く</b>ので基準になりません。計算で両方出して、条件を満たす方を選びました。
+  </div>
+</section>
+
+<!-- ============ 07 ============ -->
+<section id="s7">
+  <h2><span class="n">07</span><span>実機に載せる</span></h2>
+  <p class="lede">学習が終われば方策はただの行列積です。フレームワークは要りません。</p>
+
+  <h3>重みを C のヘッダに書き出す</h3>
+  <p>14 → 128 → 128 → 2 の全結合、活性化は tanh。これを配列と1つの関数として書き出します。マイコンには PyTorch も NumPy も要りません。</p>
+
+<pre><code><span class="c">// raw_obs -&gt; action。呼び出し側がメモリを持つ。動的確保なし</span>
+<span class="k">static inline void</span> goron_policy(<span class="k">const float</span> raw[GORON_OBS], <span class="k">float</span> action[GORON_ACT]) {
+  <span class="k">float</span> x[GORON_OBS], h0[GORON_HID], h1[GORON_HID];
+  <span class="k">for</span> (<span class="k">int</span> i = 0; i &lt; GORON_OBS; ++i) {
+    <span class="k">float</span> v = (raw[i] - goron_obs_mean[i]) / goron_obs_std[i];   <span class="c">// 学習時と同じ正規化</span>
+    x[i] = v &gt; GORON_OBS_CLIP ? GORON_OBS_CLIP : (v &lt; -GORON_OBS_CLIP ? -GORON_OBS_CLIP : v);
+  }
+  <span class="c">// ... 3層の行列積と tanh ...</span>
+}</code></pre>
+
+  <div class="note">
+    <b>観測の正規化統計を一緒に書き出すのを忘れない</b>
+    方策は<b>正規化された観測</b>で学習されています。平均と標準偏差（<code>VecNormalize</code> の統計）が無いチェックポイントは使えません。この題材では、<b>最良時点の重みと最終時点の統計を組み合わせて</b>評価してしまい、性能を5分の1に見誤ったことがあります。
+  </div>
+
+  <p>書き出したら<strong>必ず元のフレームワークと突き合わせます</strong>。この題材では最大差 4.8e-07 でした。ここが合っていなければ、実機で何が起きても原因が切り分けられません。</p>
+
+  <h3>50 Hz の制御ループ</h3>
+  <p>実機側でやることは4つです。</p>
+  <ol class="body">
+    <li>観測を組み立てる（IMU を較正行列で回し、サーボから角度・速度・電流を読む）</li>
+    <li>方策を呼ぶ</li>
+    <li>行動を目標角の増分として積算し、実測角から <code>MAX_LEAD</code> 以内に制限する</li>
+    <li>サーボに目標角を送る</li>
+  </ol>
+
+  <div class="trap">
+    <h4>描画と同じループに置くと制御周期が守れない</h4>
+    <dl>
+      <dt>症状</dt><dd>50 Hz（20 ms 周期）で回しているつもりが、遅れが 51 ms に達していた。</dd>
+      <dt>原因</dt><dd>同じループで顔を描画していた。320×240 のスプライトを PSRAM から転送するのに数十 ms かかり、その間ループが止まる。</dd>
+      <dt>見つけ方</dt><dd><strong>実測の周波数と1周期の処理時間を画面とログに出した</strong>。「50 Hz で回しているつもり」を数字にした瞬間に分かった。</dd>
+    </dl>
+  </div>
+
+  <p>直し方は、制御を<strong>別のコアの専用タスク</strong>に移すことです。ESP32 は2コアあるので、描画を Core 0、制御を Core 1 に分けます。</p>
+
+<pre><code><span class="c">// Core1 で 50Hz を刻む。vTaskDelayUntil は周期の起点を保つので、</span>
+<span class="c">// 1回遅れても次で取り返し、平均周期がずれない</span>
+<span class="k">static void</span> policyTask(<span class="k">void</span>*) {
+  <span class="k">const</span> TickType_t period = pdMS_TO_TICKS(1000 / GORON_CONTROL_HZ);
+  TickType_t last = xTaskGetTickCount();
+  <span class="k">for</span> (;;) {
+    policyStepOnce();
+    vTaskDelayUntil(&amp;last, period);
+  }
+}
+xTaskCreatePinnedToCore(policyTask, <span class="s">"policy"</span>, 8192, nullptr, 2, nullptr, <span class="w">1</span>);</code></pre>
+
+  <h3>動かす前に「空回し」する</h3>
+  <p>いきなり方策にサーボを渡してはいけません。<strong>観測を組み立てて方策を呼ぶが、目標角は送らない</strong>モードを作ります。</p>
+
+<pre><code>O,up -0.02 +0.00 +1.00,  <span class="c">← 伏せ・水平。IMU の軸マップが正しい</span>
+  w +0.01 -0.00 -0.01,   <span class="c">← 静止。ジャイロの符号も妥当</span>
+  sc -0.20 +0.83 +0.98 +0.56,  <span class="c">← クランク角が較正姿勢と一致</span>
+  v +0.000 +0.002, t +0.000,   <span class="c">← 無回転・無負荷</span>
+  act +1.000 -1.000, 50Hz       <span class="c">← 周期が出ている</span></code></pre>
+
+  <p>これで<strong>観測の全項目・制御周期・方策の出力</strong>を、脚を一切動かさずに確認できます。ここが通ってから初めてトルクを入れます。</p>
+</section>
+
+<!-- ============ 08 ============ -->
+<section id="s8">
+  <h2><span class="n">08</span><span>デバッグの道具をつくる</span></h2>
+  <p class="lede">Sim2Real の失敗は「どこが違うのか分からない」形で現れます。差分を見えるようにする道具に投資すると、後で全部回収できます。</p>
+
+  <h3>実機をシミュレータに映す</h3>
+  <p>いちばん効いた道具はこれでした。実機のテレメトリ（IMU と関節角）を PC で受け、<strong>MuJoCo の同じモデルに流し込んで描画する</strong>。物理は回さず、運動学だけ解きます（実機が正、画面が従う）。</p>
+
+<pre><code>data.qpos[base:base+3]   = [<span class="w">0</span>, <span class="w">0</span>, height]
+data.qpos[base+3:base+7] = quat_from_up(up)     <span class="c"># 加速度計から姿勢を復元</span>
+data.qpos[hip_l] = math.radians(crank_l)        <span class="c"># 実機のクランク角</span>
+data.qpos[hip_r] = math.radians(crank_r)
+mujoco.mj_forward(model, data)                  <span class="c"># 運動学だけ。mj_step ではない</span>
+viewer.sync()</code></pre>
+
+  <p>これで<strong>実機を手で動かすと画面のモデルが同じように動く</strong>ようになります。左右の取り違え、原点のズレ、IMU の軸違い — <strong>規約の間違いはすべてここで見つかりました</strong>。数字を睨んでいても分からないものが、並べた瞬間に分かります。</p>
+
+  <div class="note">
+    <b>加速度計だけではヨーが復元できない</b>
+    重力は鉛直軸まわりの回転に対して不変なので、機体を水平面内で回しても読みは変わりません。ヨーは<b>原理的に</b>復元できないので、ミラーでも回りません。これはバグではなく、実機の制約をそのまま表しています（だから観測にもヨーは入っていません）。
+  </div>
+
+  <h3>記録がないものは再現できない</h3>
+  <p>学習を回すとき、寸法や質量をコマンドライン引数で渡していると、<strong>その値はどこにも残りません</strong>。この題材では、出荷済みの方策がどのロボットで学習されたのか分からなくなっていました。</p>
+  <p>さらに悪いのは、評価スクリプトが<strong>それぞれ自分の既定値でロボットを組み直していた</strong>ことです。方策を「学習したのと別の機体」で採点することが起こり得ました。</p>
+
+<pre><code><span class="c"># 学習時に、ロボットと学習設定とコミットを丸ごと書き出す</span>
+payload = {
+    <span class="s">"robot"</span>: params.to_dict(),
+    <span class="s">"training"</span>: vars(args),
+    <span class="s">"git_commit"</span>: subprocess.run([<span class="s">"git"</span>, <span class="s">"rev-parse"</span>, <span class="s">"HEAD"</span>], ...).stdout.strip(),
+}
+(out / <span class="s">"params.json"</span>).write_text(json.dumps(payload, indent=<span class="w">2</span>))</code></pre>
+
+  <p>そして<strong>読み戻す側は、記録が無いときに黙って既定値へ落ちてはいけません</strong>。警告を出します。黙って落ちるのが、いちばん見つけにくい失敗の形だからです。</p>
+</section>
+
+<!-- ============ 09 ============ -->
+<section id="s9">
+  <h2><span class="n">09</span><span>残っている宿題 — 測れなかった値の扱い</span></h2>
+  <p class="lede">この記事は成功譚ではありません。<strong>最後に載せた方策は実機で転びます</strong>。その理由が、Sim2Real でいちばん大事な教訓を含んでいます。</p>
+
+  <p>床の摩擦は測れました（腹を滑らせた 0.302）。しかし<strong>脚の摩擦は測れませんでした</strong> — 二本足では立たないので滑らせられません。そこで「腹も脚も同じ印刷 PLA が同じ床に触れるのだから同じ値だろう」と推論で 0.302 を置き、その値で学習し直しました。</p>
+  <p>シミュレータ上では新しい方策が勝ちました。同一シード100本の対応比較で +7.5%、統計的にも有意。ところが<strong>実機ではすぐ転びます</strong>。摩擦を振ってみると理由が分かります。</p>
+
+  <figure>
+    <div class="figbox">
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--accent)"></i>旧方策（μ=1.0 で学習）</span>
+        <span><i class="swatch" style="background:var(--warn)"></i>新方策（μ=0.302 で学習）</span>
+      </div>
+      <svg viewBox="0 0 760 292" role="img" aria-label="床摩擦を変えたときの2つの方策の報酬。旧方策は平坦、新方策は0.3付近のみ高い">
+        <g class="svg-lab">
+          <g class="svg-soft" stroke-width="1">
+            <line x1="62" y1="132.5" x2="700" y2="132.5"/>
+            <line x1="62" y1="42.1" x2="700" y2="42.1"/>
+          </g>
+          <line x1="62" y1="222.9" x2="700" y2="222.9" stroke="var(--rule)" stroke-width="1.2"/>
+          <g class="svg-mut" text-anchor="end">
+            <text x="54" y="226.9">0</text><text x="54" y="136.5">100</text><text x="54" y="46.1">200</text>
+          </g>
+          <text class="svg-mut" x="8" y="18">報酬（移動距離に比例）</text>
+
+          <g class="svg-mut" text-anchor="middle">
+            <text x="62" y="266">0.15</text><text x="153.1" y="266">0.30</text>
+            <text x="274.7" y="266">0.50</text><text x="457" y="266">0.80</text><text x="700" y="266">1.20</text>
+          </g>
+          <text class="svg-mut" x="381" y="284" text-anchor="middle">床の摩擦係数 μ</text>
+
+          <rect x="140" y="24" width="26" height="199" fill="var(--accent-dim)"/>
+          <text class="svg-tag" x="153" y="18" text-anchor="middle" fill="var(--muted)">実測値</text>
+
+          <g fill="none" stroke-width="2.5" stroke-linejoin="round">
+            <polyline stroke="var(--accent)" points="62.0,210.1 153.1,60.5 274.7,39.5 457.0,36.5 700.0,46.8"/>
+            <polyline stroke="var(--warn)" points="62.0,159.2 153.1,54.7 274.7,148.8 457.0,231.9 700.0,211.3"/>
+          </g>
+          <g fill="var(--accent)"><circle cx="62" cy="210.1" r="4.5"/><circle cx="153.1" cy="60.5" r="4.5"/><circle cx="274.7" cy="39.5" r="4.5"/><circle cx="457" cy="36.5" r="4.5"/><circle cx="700" cy="46.8" r="4.5"/></g>
+          <g fill="var(--warn)"><circle cx="62" cy="159.2" r="4.5"/><circle cx="153.1" cy="54.7" r="4.5"/><circle cx="274.7" cy="148.8" r="4.5"/><circle cx="457" cy="231.9" r="4.5"/><circle cx="700" cy="211.3" r="4.5"/></g>
+
+          <text class="svg-tag" x="470" y="28" fill="var(--accent)">0.3〜1.2 で平坦</text>
+          <text class="svg-tag" x="470" y="252" fill="var(--warn)">0.30 を外れると崩壊</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption><b>図 09</b> — 同じタスク、同じ機体、違うのは学習時の床摩擦だけ。旧方策は μ=0.3〜1.2 の全域で 180〜206 とほぼ平坦、新方策は <b>0.30 の一点でしか動きません</b>（0.8 では報酬が負）。実機の摩擦が推定と少しでも違えば、後者は機能しません。</figcaption>
+  </figure>
+
+  <div class="trap">
+    <h4>平均性能で選ぶと、脆い方策を選んでしまう</h4>
+    <dl>
+      <dt>症状</dt><dd>シミュレータで有意に勝った方策が、実機では旧方策より明確に悪い。</dd>
+      <dt>原因</dt><dd><strong>測れない量に対して一点で最適化した</strong>。そして選定基準を「その一点での平均性能」に置いた。μ=1.0 で報酬 12.4 に崩壊するのを見た時点で「汎化していない」と分かっていたのに、+7.5% を優先した。</dd>
+      <dt>見つけ方</dt><dd>実機で転んだ。<strong>シミュレータ上の比較では発見できなかった</strong> — 比較していた床が、学習した床と同じだったから。</dd>
+    </dl>
+  </div>
+
+  <div class="note">
+    <b>測れない量があるときの正しい手順</b>
+    ①その量を<b>ランダム化</b>して学習する（不確かさの幅をカバーする）。②選定基準を<b>ピーク性能ではなく、想定範囲での最悪値</b>にする。③図09のようなスイープを、実機に載せる前の必須チェックにする。<br><br>
+    ドメインランダム化は「あれば良い」ではなく、<b>測れない量が1つでもあるなら必須</b>です。
+  </div>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="s10">
+  <h2><span class="n">10</span><span>次に自分でやるときの手順</span></h2>
+  <p class="lede">この題材で有効だった順番です。上から順に、前の工程が終わってから次に進みます。</p>
+
+  <div class="checklist">
+    <ol>
+      <li><b>実機で測れる量だけで観測を設計する</b><span>ここを間違えると、後の工程が全部無駄になります。位置とヨーは（測れないので）入れない。回り続ける関節は sin/cos で入れる。</span></li>
+      <li><b>モデルをパラメトリックに書き、成立条件を検査にする</b><span>寸法をデータクラスに追い出し、「脚が胴体を通れるか」のような条件をプロパティにして起動時に弾く。</span></li>
+      <li><b>当たり判定は接触の性質で決める</b><span>凸包になることを忘れない。非凸が本質なら凸分解する。</span></li>
+      <li><b>学習の前に開ループで難易度を測る</b><span>「一度も達成しない」なら報酬か機体が違う。「最初から100%」なら簡単すぎる。成功率で見る。</span></li>
+      <li><b>報酬は物理量に払い、抜け道は構造で塞ぐ</b><span>フラグに払うと境界の振動で稼がれる。報酬と成功率は必ず別々に記録する。</span></li>
+      <li><b>学習の設定を run に書き出す</b><span>寸法・質量・コミットを params.json に。読み戻す側は、記録が無ければ黙らず警告する。</span></li>
+      <li><b>実機を測る。順番は 質量 → サーボ → 摩擦</b><span>質量は秤、慣性は CAD メッシュから。サーボはステップ応答を合わせ込み、使わなかったデータで検証する。</span></li>
+      <li><b>座標系と原点を、実機とシミュレータを並べて確定する</b><span>ミラーを作る。姿勢は「前」ではなく見える特徴で指示する。原点は機械的に再現できる姿勢から取る。</span></li>
+      <li><b>測れなかった量はランダム化して学習する</b><span>そして選定基準を、その量を振ったときの最悪値にする。</span></li>
+      <li><b>空回しで観測と周期を確認してから、トルクを入れる</b><span>目標角を送らないモードで、観測の全項目と制御周期を確認する。</span></li>
+    </ol>
+  </div>
+
+  <p style="margin-top:36px">この10項目のうち、<strong>4・6・9 は今回の作業で「やっていなかったせいで痛い目を見た」項目</strong>です。順番に効いてくるので、面倒でも飛ばさない方が結局早いです。</p>
+</section>
+
+</main>
+
+<footer>
+  goron — 二脚クランクロボットの Sim2Real 記録 / MuJoCo 3.11 · stable-baselines3 · M5Stack Core2 · DYNAMIXEL XL330-M288-T<br>
+  本文中の数値はすべて実機および実際の学習run から取得したものです。
+</footer>
+
+</div>
