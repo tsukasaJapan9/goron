@@ -17,11 +17,12 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from goron.env import GoronEnv
 from goron.tasks import TASKS
-from goron.train import add_robot_args, build_params
+from goron.train import add_robot_args, params_for_run, task_for_run
 
 
 def make_eval_venv(args, *, render: bool) -> VecNormalize:
-    params = build_params(args)
+    # The robot the run was trained on, not whatever the flags default to.
+    params = params_for_run(Path(args.run), args)
 
     def _init():
         return GoronEnv(
@@ -52,7 +53,8 @@ def make_eval_venv(args, *, render: bool) -> VecNormalize:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", default="runs/selfright")
-    ap.add_argument("--task", default="selfright", choices=sorted(TASKS))
+    ap.add_argument("--task", default=None, choices=sorted(TASKS),
+                    help="default: the task the run was trained for")
     ap.add_argument("--model", default="best_model")
     ap.add_argument("--episodes", type=int, default=50)
     ap.add_argument("--video", type=Path, default=None)
@@ -60,6 +62,11 @@ def main() -> None:
     ap.add_argument("--obs-noise", type=float, default=0.01)
     add_robot_args(ap)
     args = ap.parse_args()
+    if args.task is None:
+        # Evaluating a crawl policy against the self-righting task scores it on
+        # a goal it never had, and the number looks like a broken policy.
+        args.task = task_for_run(Path(args.run)) or "selfright"
+        print(f"task: {args.task}")
 
     venv = make_eval_venv(args, render=args.video is not None)
     model = PPO.load(Path(args.run) / args.model, device="cpu")

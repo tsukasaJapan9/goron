@@ -7,6 +7,8 @@ observations leaking un-measurable state.
 
 from __future__ import annotations
 
+import argparse
+import json
 import math
 
 import mujoco
@@ -16,6 +18,7 @@ import pytest
 from goron.env import CORE_OBS, GoronEnv
 from goron.model import RobotParams, build_mjcf
 from goron.tasks import TASKS
+from goron.train import add_robot_args, build_params
 
 
 @pytest.mark.parametrize("swing", ["sagittal", "lateral"])
@@ -197,3 +200,37 @@ def test_randomisation_does_not_compound():
     for seed in range(5):
         env.reset(seed=seed)
         assert 0.8 * nominal < env.model.body_mass[env.torso_bid] < 1.2 * nominal
+
+
+def test_run_parameters_survive_a_round_trip():
+    """A run's robot must be recoverable from what training wrote down.
+
+    Without this, `eval` and `export_policy` silently fall back to the default
+    robot -- which is how a policy ends up judged against, or scaled for, a
+    machine it was never trained on.
+    """
+    p = RobotParams.asbuilt(leg_shape="mesh")
+    assert RobotParams.from_dict(json.loads(json.dumps(p.to_dict()))) == p
+
+
+def test_asbuilt_flag_is_the_measured_robot_and_flags_still_override():
+    ap = argparse.ArgumentParser()
+    add_robot_args(ap)
+    assert build_params(ap.parse_args([])) == RobotParams()
+    assert build_params(ap.parse_args(["--asbuilt"])) == RobotParams.asbuilt()
+    p = build_params(ap.parse_args(["--asbuilt", "--leg-shape", "c_leg"]))
+    assert p.leg_shape == "c_leg"
+    assert p.servo_kp == RobotParams.asbuilt().servo_kp  # the rest is untouched
+
+
+def test_the_leg_stays_put_when_the_servo_is_off():
+    """Dry friction has to exceed the gravity torque on a leg.
+
+    Measured on the robot: with torque off the leg does not move at all, at any
+    crank angle. A joint carrying only viscous damping cannot reproduce that,
+    and a leg that flops under gravity in simulation is a different machine.
+    """
+    p = RobotParams.asbuilt()
+    m = p.leg_mass + p.foot_mass
+    gravity_torque = m * 9.81 * 0.0167  # centre of mass 16.7 mm from the hinge
+    assert p.joint_frictionloss > gravity_torque

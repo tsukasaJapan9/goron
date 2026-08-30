@@ -11,7 +11,9 @@ normalised observations, so evaluation and any hardware export must reuse it.
 from __future__ import annotations
 
 import argparse
+import json
 import math
+import subprocess
 from pathlib import Path
 
 from stable_baselines3 import PPO
@@ -55,19 +57,25 @@ class SaveVecNormalize(BaseCallback):
 
 def add_robot_args(ap: argparse.ArgumentParser) -> None:
     """Geometry flags shared by train and eval, so a run can be reproduced."""
-    ap.add_argument("--swing", default="sagittal", choices=("sagittal", "lateral"))
-    ap.add_argument("--leg-shape", default="bar",
+    # Every flag defaults to None so that "not given" is distinguishable from
+    # "given the same value as the base"; --asbuilt then supplies the base and
+    # only the flags actually passed override it.
+    ap.add_argument("--asbuilt", action="store_true",
+                    help="start from the measured robot (RobotParams.asbuilt): "
+                         "CAD dimensions, weighed masses, identified servo")
+    ap.add_argument("--swing", default=None, choices=("sagittal", "lateral"))
+    ap.add_argument("--leg-shape", default=None,
                     choices=("bar", "c_leg", "spiral", "mesh"))
-    ap.add_argument("--leg", type=float, default=50.0, help="leg length, mm")
-    ap.add_argument("--hip-x", type=float, default=0.0)
-    ap.add_argument("--hip-z", type=float, default=1.0)
-    ap.add_argument("--hip-gap", type=float, default=12.0, help="hip outboard gap, mm")
-    ap.add_argument("--leg-phase", type=float, default=0.0,
+    ap.add_argument("--leg", type=float, default=None, help="leg length, mm")
+    ap.add_argument("--hip-x", type=float, default=None)
+    ap.add_argument("--hip-z", type=float, default=None)
+    ap.add_argument("--hip-gap", type=float, default=None, help="hip outboard gap, mm")
+    ap.add_argument("--leg-phase", type=float, default=None,
                     help="degrees to rotate the mesh leg about its hinge")
     # Enclosure, so a measured CAD design can be simulated as-built.
-    ap.add_argument("--torso-len", type=float, default=54.0, help="fore/aft, mm")
-    ap.add_argument("--torso-width", type=float, default=54.0, help="lateral, mm")
-    ap.add_argument("--torso-height", type=float, default=16.0, help="vertical, mm")
+    ap.add_argument("--torso-len", type=float, default=None, help="fore/aft, mm")
+    ap.add_argument("--torso-width", type=float, default=None, help="lateral, mm")
+    ap.add_argument("--torso-height", type=float, default=None, help="vertical, mm")
     ap.add_argument("--body-mass", type=float, default=None,
                     help="body mass in grams: shell + board + battery + servos, "
                          "i.e. everything that is not a leg")
@@ -76,18 +84,20 @@ def add_robot_args(ap: argparse.ArgumentParser) -> None:
 
 
 def build_params(args: argparse.Namespace) -> RobotParams:
-    p = RobotParams(
-        swing=args.swing,
-        leg_shape=args.leg_shape,
-        leg_length=args.leg / 1000,
-        hip_x_frac=args.hip_x,
-        hip_z_frac=args.hip_z,
-        hip_y_gap=args.hip_gap / 1000,
-        leg_phase=math.radians(args.leg_phase),
-        torso_len=args.torso_len / 1000,
-        torso_width=args.torso_width / 1000,
-        torso_height=args.torso_height / 1000,
-    )
+    p = RobotParams.asbuilt() if getattr(args, "asbuilt", False) else RobotParams()
+    given = {
+        "swing": args.swing,
+        "leg_shape": args.leg_shape,
+        "leg_length": None if args.leg is None else args.leg / 1000,
+        "hip_x_frac": args.hip_x,
+        "hip_z_frac": args.hip_z,
+        "hip_y_gap": None if args.hip_gap is None else args.hip_gap / 1000,
+        "leg_phase": None if args.leg_phase is None else math.radians(args.leg_phase),
+        "torso_len": None if args.torso_len is None else args.torso_len / 1000,
+        "torso_width": None if args.torso_width is None else args.torso_width / 1000,
+        "torso_height": None if args.torso_height is None else args.torso_height / 1000,
+    }
+    p = p.with_(**{k: v for k, v in given.items() if v is not None})
     if args.leg_mass is not None:
         # Two thirds in the limb, one third at the tip -- a C-leg's horn end is
         # heavier than its toe, and the split barely matters next to the 288:1
@@ -110,6 +120,62 @@ def build_params(args: argparse.Namespace) -> RobotParams:
     if not p.leg_clears_torso:
         raise SystemExit("--hip-gap too small: the leg cannot rotate past the torso.")
     return p
+
+
+PARAMS_FILE = "params.json"
+
+
+def save_run_params(out: Path, params: RobotParams, args: argparse.Namespace) -> None:
+    """Record what this run was trained on, next to the weights.
+
+    Without it a finished run cannot be reproduced, evaluated on the same robot,
+    or exported with the right action scale -- the flags live only in the shell
+    history of whoever launched it.
+    """
+    payload = {
+        "robot": params.to_dict(),
+        "training": {k: (str(v) if isinstance(v, Path) else v)
+                     for k, v in vars(args).items()},
+    }
+    try:
+        payload["git_commit"] = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+            cwd=Path(__file__).parent, timeout=5,
+        ).stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        payload["git_commit"] = None
+    (out / PARAMS_FILE).write_text(json.dumps(payload, indent=2) + "\n")
+
+
+def load_run_params(run: Path) -> RobotParams | None:
+    """The robot a run was trained on, or None if it predates the recording."""
+    path = Path(run) / PARAMS_FILE
+    if not path.exists():
+        return None
+    return RobotParams.from_dict(json.loads(path.read_text())["robot"])
+
+
+def task_for_run(run: Path) -> str | None:
+    """The task a run was trained for, from its record."""
+    path = Path(run) / PARAMS_FILE
+    if not path.exists():
+        return None
+    return json.loads(path.read_text()).get("training", {}).get("task")
+
+
+def params_for_run(run: Path, args: argparse.Namespace) -> RobotParams:
+    """Prefer the recorded robot; fall back to the flags with a warning.
+
+    Silently falling back is how a policy ends up evaluated against a different
+    robot than it was trained on, which looks like a bad policy rather than a
+    bad comparison.
+    """
+    recorded = load_run_params(run)
+    if recorded is not None:
+        return recorded
+    print(f"warning: {Path(run) / PARAMS_FILE} not found -- falling back to the "
+          f"command line flags, which may not match how {run} was trained")
+    return build_params(args)
 
 
 def make_env_fn(args: argparse.Namespace, *, randomize: bool):
@@ -145,6 +211,7 @@ def main() -> None:
 
     out = RUNS / (args.name or args.task)
     out.mkdir(parents=True, exist_ok=True)
+    save_run_params(out, build_params(args), args)
 
     venv = make_vec_env(make_env_fn(args, randomize=args.randomize),
                         n_envs=args.n_envs, seed=args.seed,

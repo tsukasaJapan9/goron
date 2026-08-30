@@ -23,7 +23,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from goron.env import GoronEnv
 from goron.model import RobotParams
-from goron.train import add_robot_args, build_params
+from goron.train import add_robot_args, params_for_run
 
 
 def make(run: Path, obs_noise: float = 0.0, params: RobotParams | None = None):
@@ -99,7 +99,7 @@ def main() -> None:
     ap.add_argument("--episodes", type=int, default=30)
     add_robot_args(ap)
     args = ap.parse_args()
-    params = build_params(args)
+    params = params_for_run(args.run, args)
 
     for axis, (scales, apply) in AXES.items():
         print(f"\n{axis}")
