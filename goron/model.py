@@ -43,7 +43,8 @@ explicitly as joint `armature` rather than ignored.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, replace
+import dataclasses
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
@@ -81,6 +82,10 @@ class RobotParams:
     # policy trained on a primitive reads its own crank-angle observation
     # against a leg pointing somewhere else entirely.
     leg_phase: float = 0.0
+    # Draw the printed parts on top of the collision primitives. Visual only:
+    # the geoms carry no mass and no contact, so the physics is byte-identical
+    # with and without it. For comparing the model against the real robot.
+    visual_stl: bool = False
     # Spiral parameters, all measured from hardware/stl/leg_left.stl.
     hub_radius: float = 0.018
     spiral_r0: float = 0.019      # arm radius where it leaves the hub
@@ -113,6 +118,16 @@ class RobotParams:
     servo_gear_ratio: float = 288.4
     servo_rotor_inertia: float = 1.0e-8  # kg.m^2, estimated -- identify on HW
     servo_kp: float = 5.0               # N.m/rad, internal position loop
+    # Viscous damping at the joint. This used to be derived as stall torque over
+    # no-load speed, but that quantity describes the motor's *electrical*
+    # behaviour, not mechanical drag, and measurement on the robot showed the
+    # real viscous term is far smaller. The old value is kept as the default so
+    # existing runs reproduce; identification overrides it.
+    joint_damping: float = 0.0482       # = 0.52 / 10.79, the old derivation
+    # Coulomb friction in the gearbox, N.m. Not a refinement: with torque off
+    # the leg does not fall at all, so dry friction exceeds the 1.5e-3 N.m that
+    # gravity applies to it. A viscous-only joint cannot reproduce that.
+    joint_frictionloss: float = 0.0
 
     # --- contact -----------------------------------------------------------
     floor_friction: float = 1.0
@@ -123,10 +138,95 @@ class RobotParams:
     def with_(self, **kwargs) -> "RobotParams":
         return replace(self, **kwargs)
 
+    def to_dict(self) -> dict:
+        """Serialisable form, for recording alongside a training run.
+
+        `wedge_dir` is left out on purpose: it points at repository data, not at
+        a property of the robot, and writing an absolute path into a run would
+        break the moment the checkout moved.
+        """
+        d = asdict(self)
+        d.pop("wedge_dir", None)
+        d["servo_size"] = list(self.servo_size)
+        return d
+
+    @staticmethod
+    def from_dict(d: dict) -> "RobotParams":
+        """Rebuild from `to_dict`, ignoring keys this version no longer has.
+
+        Tolerating unknown keys matters: a run recorded by a later version must
+        still load, with a warning, rather than crash a comparison.
+        """
+        fields = {f.name for f in dataclasses.fields(RobotParams)}
+        unknown = set(d) - fields
+        if unknown:
+            print(f"warning: ignoring unknown robot parameters {sorted(unknown)}")
+        kw = {k: v for k, v in d.items() if k in fields}
+        if "servo_size" in kw:
+            kw["servo_size"] = tuple(kw["servo_size"])
+        return RobotParams(**kw)
+
     # --- derived -----------------------------------------------------------
     @property
     def torso_half(self) -> tuple[float, float, float]:
         return (self.torso_len / 2, self.torso_width / 2, self.torso_height / 2)
+
+    @staticmethod
+    def asbuilt(**kwargs) -> "RobotParams":
+        """The robot that was actually printed, measured off hardware/stl.
+
+        Dimensions are read from the CAD assembly: the enclosure is 80 (fore /
+        aft) x 80 (lateral) x 72 (vertical) mm, and the hinge sits 1.5 mm above
+        its centre -- `hip_z_frac=0.04`, nowhere near the top plate the default
+        assumes.
+
+        Masses are weighed: 303.9 g assembled, 9 g per leg. The legs came in at
+        less than half the 20 g that hardware/goron.urdf was first built with --
+        the printed parts are sparse-infill, so mesh volume times material
+        density overestimates them badly. That matters more than the 2 percent
+        error in the total, because leg inertia dominates the swing.
+
+        Only the total and the legs were weighed. The split of the remaining
+        249.9 g between board, battery and printed shell is not measured, so it
+        is carried whole in `board_mass`; hardware/goron.urdf distributes it
+        over the parts by volume to get the centre of mass.
+        """
+        defaults = dict(
+            torso_len=0.080, torso_width=0.080, torso_height=0.072,
+            hip_z_frac=0.04, leg_shape="mesh",
+            board_mass=0.2499, extra_mass=0.0,    # + 2 servos = 285.9 g
+            leg_mass=0.006, foot_mass=0.003,      # 9 g per leg
+            # Identified by matching simulated step responses against ten
+            # measured ones (5 to 120 degrees, both directions) on the real
+            # servo. Trajectory error fell from 17.0% to 2.5%; on the other
+            # leg's step, which was held out of the fit, from 3.74 to 0.32 deg
+            # RMS. The joint is much softer and heavier than the spec-derived
+            # guesses, and it has dry friction the model did not have at all.
+            servo_kp=0.673,                # was 5.0 -- 7.4x too stiff
+            servo_rotor_inertia=2.256e-8,  # was 1.0e-8
+            joint_damping=0.0554,          # was 0.0482, barely moved
+            joint_frictionloss=0.00877,    # was absent
+            # Measured by shoving the robot along the floor it runs on and
+            # reading the tilt of the specific force while it slid: 0.302 over
+            # three trials that agreed to 0.01. The old 1.0 was a placeholder.
+            floor_friction=0.302,
+            # Not measured -- the robot cannot stand on two legs to be shoved.
+            # Set equal to the belly because both surfaces are the same printed
+            # PLA on the same floor, and dry friction depends on the material
+            # pair rather than on contact area. It is worth distrusting: with
+            # the floor at 0.302, moving this from 0.30 to 0.50 cost the crawl
+            # policy 4x its reward, so it is the first thing to re-check if the
+            # real robot crawls worse than the simulation says. To measure it,
+            # tilt any board and take the ratio of leg-on-board to belly-on-
+            # board, then scale the belly's measured 0.302 by it.
+            foot_friction=0.302,
+        )
+        return RobotParams(**{**defaults, **kwargs})  # caller wins
+
+    @property
+    def stl_dir(self) -> Path:
+        """The printed parts, in the CAD assembly frame (mm)."""
+        return self.wedge_dir.parent
 
     @property
     def hip_y(self) -> float:
@@ -137,11 +237,6 @@ class RobotParams:
     def total_mass(self) -> float:
         return (self.board_mass + self.extra_mass
                 + 2 * (self.servo_mass + self.leg_mass + self.foot_mass))
-
-    @property
-    def joint_damping(self) -> float:
-        """Damping that reproduces the quoted no-load speed at stall torque."""
-        return self.servo_stall_torque / self.servo_no_load_speed
 
     @property
     def joint_armature(self) -> float:
@@ -298,15 +393,45 @@ def _leg_geoms(p: RobotParams, side_sign: int) -> str:
     return "\n".join(parts)
 
 
+# Printed parts drawn as visual overlay. Torso parts ride the body; leg parts
+# turn with the crank (matching how hardware/goron.urdf splits them).
+VISUAL_TORSO = ("body_bottom", "body_upper", "m5stack", "bat",
+                "servo_left", "servo_right")
+VISUAL_LEG = ("leg_left", "servo_joint_left", "leg_right", "servo_joint_right")
+
+# CAD assembly frame -> simulation frame. The same mapping scripts/split_leg.py
+# applies to the wedges:  sim_x = CAD_z,  sim_y = CAD_x,  sim_z = CAD_y.
+# That is the cyclic permutation x->y->z->x, i.e. a 120 degree turn about
+# (1,1,1) -- a rotation, not a mirror, so rotation senses are preserved.
+CAD_TO_SIM_QUAT = "0.5 0.5 0.5 0.5"
+HINGE_Y_CAD = 0.035   # the hinge sits 35 mm up the CAD frame
+PLATE_X_CAD = 0.052   # and 52 mm out along it
+
+
+def _visual_geoms(names: tuple[str, ...], pos: str) -> str:
+    """Visual-only geoms: no contact, no mass, no effect on the physics."""
+    return "\n".join(
+        f"""        <geom name="{n}_vis" type="mesh" mesh="{n}" mass="0"
+              contype="0" conaffinity="0" group="2"
+              pos="{pos}" quat="{CAD_TO_SIM_QUAT}" rgba="0.75 0.78 0.82 1"/>"""
+        for n in names
+    )
+
+
 def _mesh_assets(p: RobotParams) -> str:
     """Declare the wedge meshes, with absolute paths so that a model built as a
     string (rather than loaded from a file) still resolves them."""
-    if p.leg_shape != "mesh":
-        return ""
-    return "\n".join(
-        f'    <mesh name="{f.stem}" file="{f.resolve()}"/>'
-        for f in sorted(p.wedge_dir.glob("*.stl"))
-    )
+    out = []
+    # The wedges were written in metres by scripts/split_leg.py; the printed
+    # parts are raw CAD exports and are still in millimetres.
+    if p.leg_shape == "mesh":
+        out += [f'    <mesh name="{f.stem}" file="{f.resolve()}"/>'
+                for f in sorted(p.wedge_dir.glob("*.stl"))]
+    if p.visual_stl:
+        out += [f'    <mesh name="{n}" file="{(p.stl_dir / f"{n}.stl").resolve()}"'
+                f' scale="0.001 0.001 0.001"/>'
+                for n in VISUAL_TORSO + VISUAL_LEG]
+    return "\n".join(out)
 
 
 def build_mjcf(p: RobotParams = RobotParams()) -> str:
@@ -314,6 +439,11 @@ def build_mjcf(p: RobotParams = RobotParams()) -> str:
     sx, sy, sz = p.servo_size
     axis = "0 1 0" if p.swing == "sagittal" else "1 0 0"
     spawn_z = max(hx, hy, hz) + p.leg_length + p.foot_radius + 0.02
+    # Anchor the printed body on the hinge, which is the one point the model and
+    # the CAD must agree on. Any disagreement then shows as a visible offset.
+    torso_visual = _visual_geoms(
+        VISUAL_TORSO, f"0 0 {p.hip_z_frac * hz - HINGE_Y_CAD:.5f}"
+    ) if p.visual_stl else ""
 
     def leg(side: str, s: int) -> str:
         return f"""
@@ -325,8 +455,12 @@ def build_mjcf(p: RobotParams = RobotParams()) -> str:
             pos="{p.hip_x_frac * hx:.5f} {s * p.hip_y:.5f} {p.hip_z_frac * hz:.5f}">
         <!-- no range attribute: the crank turns through a full 360 degrees -->
         <joint name="hip_{side}" type="hinge" axis="{axis}" limited="false"
-               damping="{p.joint_damping:.6f}" armature="{p.joint_armature:.6e}"/>
+               damping="{p.joint_damping:.6f}" armature="{p.joint_armature:.6e}"
+               frictionloss="{p.joint_frictionloss:.6f}"/>
 {_leg_geoms(p, s)}
+{_visual_geoms(
+    (f"leg_{side}", f"servo_joint_{side}"),
+    f"0 {s * PLATE_X_CAD:.5f} {-HINGE_Y_CAD:.5f}") if p.visual_stl else ""}
       </body>"""
 
     # Extended Position Control Mode is +/-256 revolutions.
@@ -362,6 +496,7 @@ def build_mjcf(p: RobotParams = RobotParams()) -> str:
             mass="{p.board_mass + p.extra_mass}" rgba="0.85 0.85 0.88 1"/>
       <site name="imu" pos="0 0 0" size="0.002" rgba="1 0 0 1"/>
       <site name="nose" pos="{hx:.5f} 0 0" size="0.002" rgba="0 1 1 1"/>
+{torso_visual}
 {leg("left", +1)}
 {leg("right", -1)}
     </body>
