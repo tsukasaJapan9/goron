@@ -326,6 +326,67 @@ class Jump(Task):
         return {"peak_height_mm": 1000 * self.peak}
 
 
+class Stand(Task):
+    """Get up onto the two leg tips and stay there.
+
+    Worth trying because the one direction the robot can act in is the one
+    direction it has to control. Standing on both tips puts the contacts
+    104 mm apart across the body, so roll is held by the support width and
+    needs no actuation -- which is just as well, since two hips sharing one
+    lateral axis cannot produce a roll torque at all. Fore and aft the two
+    contacts sit at the same x, so the support is a line of zero width and the
+    robot is an inverted pendulum: exactly what the sagittal cranks can push
+    against.
+
+    The numbers are not discouraging. The centre of mass stands 75 mm up, so
+    the pendulum's time constant is 88 ms -- 4.4 control steps at 50 Hz, tight
+    but workable -- and holding a 10 degree lean costs 0.039 N.m against the
+    0.337 N.m the policy can command. This is a bandwidth problem, not a
+    strength one.
+
+    Reward is height held while the belly stays clear of the floor, so resting
+    on the belly earns nothing. Falling is not terminated: getting back up is
+    part of the task, and the robot already knows how to self-right.
+    """
+
+    name = "stand"
+    max_steps = 500          # 10 s
+    has_success = True
+
+    def reset(self, env: "GoronEnv") -> None:
+        # Start belly-down, cranks near the pose where the tips just touch, so
+        # the first push has somewhere to go.
+        env.data.qpos[7:9] = math.radians(279.6) + env.np_random.uniform(-0.3, 0.3, 2)
+        env.place(quat=np.array([1.0, 0.0, 0.0, 0.0]),
+                  yaw=env.np_random.uniform(-math.pi, math.pi),
+                  tilt_noise=0.05)
+        env.settle(200)
+        self.rest_height = float(env.torso_pos[2])
+        self.held = 0
+        self.best_held = 0
+
+    def standing(self, env: "GoronEnv") -> bool:
+        """Up on the legs: belly clear, feet down, and not toppling."""
+        return (not env.belly_contact()
+                and env.foot_contact()
+                and env.up_z > math.cos(math.radians(35.0)))
+
+    def reward(self, env: "GoronEnv", action: np.ndarray) -> float:
+        up = self.standing(env)
+        self.held = self.held + 1 if up else 0
+        self.best_held = max(self.best_held, self.held)
+        lift = max(0.0, float(env.torso_pos[2]) - self.rest_height)
+        return (10.0 * float(up)            # paid per step spent standing
+                + 20.0 * lift               # and for how high it got there
+                + 1.0 * env.up_z
+                - self.effort_cost(env, action))
+
+    def info(self, env: "GoronEnv") -> dict:
+        return {"is_success": self.best_held >= 100,     # 2 s on its feet
+                "held_s": self.held / 50.0,
+                "best_held_s": self.best_held / 50.0}
+
+
 TASKS: dict[str, type[Task]] = {
-    t.name: t for t in (SelfRight, Forward, Crawl, Roll, Jump)
+    t.name: t for t in (SelfRight, Forward, Crawl, Roll, Jump, Stand)
 }
