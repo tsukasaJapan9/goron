@@ -108,7 +108,10 @@ def test_observation_is_hardware_realisable():
     env = GoronEnv(task="selfright")
     obs, _ = env.reset(seed=0)
     assert obs.shape == (CORE_OBS,)
-    assert np.isclose(np.linalg.norm(obs[0:3]), 1.0, atol=1e-5)
+    env.settle(400)
+    assert np.isclose(np.linalg.norm(env._obs()[0:3]), 1.0, atol=0.05), (
+        "at rest the accelerometer should read one g"
+    )
 
     before = env._obs().copy()
     yaw = 1.1
@@ -234,3 +237,24 @@ def test_the_leg_stays_put_when_the_servo_is_off():
     m = p.leg_mass + p.foot_mass
     gravity_torque = m * 9.81 * 0.0167  # centre of mass 16.7 mm from the hinge
     assert p.joint_frictionloss > gravity_torque
+
+
+def test_the_accelerometer_carries_motion_not_just_attitude():
+    """obs[0:3] must be specific force, the way the real IMU delivers it.
+
+    This encodes a sim2real break that actually shipped. The observation used
+    to be the torso's up axis, which is a unit vector by construction; the real
+    accelerometer measures gravity *plus* acceleration and ranged over 0.40 to
+    3.66 g while the robot tried to stand. The policy met inputs it had never
+    seen exactly when it was working hardest, and only flapped its legs.
+
+    The old assertion -- that the vector always has unit length -- is what kept
+    this invisible, so the property is inverted here on purpose.
+    """
+    env = GoronEnv(RobotParams.asbuilt(), task="stand")
+    env.reset(seed=0)
+    mags = []
+    for _ in range(200):
+        env.step(np.array([1.0, -1.0]))          # thrash the cranks
+        mags.append(float(np.linalg.norm(env.gravity_body)))
+    assert max(mags) > 1.5, "no dynamic term: this is attitude, not an accelerometer"

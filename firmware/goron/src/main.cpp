@@ -134,6 +134,10 @@ static uint8_t legMode  = 0xFF;  // 現在の動作モード。0xFF = 未設定�
 // 制御ループは Core1 の専用タスクで回す。Core0 の顔の描画は PSRAM から
 // 320x240 を転送するのに数十ms かかり、同じループに置くと 20ms の周期を守れない
 static volatile bool policyRunning = false;
+// 制御ループが読んだ値の写し。方策の実行中、テレメトリはこれを送る。
+// テレメトリが自分でサーボを読むと Core0 と Core1 が同じ TTL バスを取り合って
+// 通信が壊れるので、読むのは制御ループの1箇所だけにする
+static volatile float lastRaw[DXL_COUNT], lastCrank[DXL_COUNT], lastImu[6];
 static volatile uint32_t policyHz = 0;   // 実測の制御周波数
 // 空回し。観測と方策の計算はするが目標角を送らない。IMU の軸・クランク角・
 // 正規化・制御周期を、脚を動かさずに検証するため
@@ -268,6 +272,13 @@ static void toggleCalibration() {
 
     if (calibrating) {
         spinning = false;
+        // setMode は最後にトルクを入れる。その瞬間に古い目標へ飛ばないよう、
+        // 先に目標を現在位置へ置いてから切り替える
+        for (uint8_t i = 0; i < legCount; i++) {
+            dxl.setGoalPosition(legIds[i],
+                                dxl.getPresentPosition(legIds[i], UNIT_DEGREE),
+                                UNIT_DEGREE);
+        }
         setMode(OP_EXTENDED_POSITION);  // 位置を読む土俵に揃えてからトルクを抜く
         for (uint8_t i = 0; i < legCount; i++) dxl.torqueOff(legIds[i]);
         Serial.println("calibration: torque off, set the CAD assembly pose");
@@ -275,10 +286,13 @@ static void toggleCalibration() {
     }
 
     for (uint8_t i = 0; i < legCount; i++) {
+        float present = dxl.getPresentPosition(legIds[i], UNIT_DEGREE);
         // いま作った姿勢が CALIB_POSE_DEG である、として原点を逆算する
-        legZero[i] = dxl.getPresentPosition(legIds[i], UNIT_DEGREE) - CALIB_POSE_DEG;
-        // トルクを入れた瞬間に古い目標へ飛ばないよう、今いる位置を目標にしておく
-        dxl.setGoalPosition(legIds[i], legZero[i], UNIT_DEGREE);
+        legZero[i] = present - CALIB_POSE_DEG;
+        // トルクを入れた瞬間に飛ばないよう、目標は「いまの位置」。ここに legZero を
+        // 渡すと CALIB_POSE_DEG ぶん離れた場所が目標になり、脚が 280 度回り出す。
+        // 直前に方策を走らせているとプロファイルが切れていて、全速で回る
+        dxl.setGoalPosition(legIds[i], present, UNIT_DEGREE);
         dxl.torqueOn(legIds[i]);
         Serial.printf("calibration: id=%u zero = %.1f deg (pose = %.1f)\n",
                       legIds[i], legZero[i], CALIB_POSE_DEG);
@@ -389,6 +403,29 @@ static void drawCalibration() {
 
 // --- 方策の実行 (50Hz) ---
 
+// --- 方策実行の記録（Sim2Real の食い違いを測るため）---
+//
+// 実機で観測と行動をそのまま残し、PC 側で同じ行動をシミュレータに流し込む。
+// 同じ入力に対して応答が違えば、モデルのどこが実機と違うかが直接分かる。
+// 推測ではなく測定で切り分けるための道具。
+static const uint16_t LOG_SAMPLES = 500;        // 50Hz で 10 秒
+static float    logObs[LOG_SAMPLES][GORON_OBS];
+static float    logAct[LOG_SAMPLES][GORON_ACT];
+static uint32_t logT[LOG_SAMPLES];
+static volatile uint16_t logCount = 0;
+static volatile bool     logging  = false;
+
+static void dumpLog() {
+    Serial.printf("L,begin,samples,%u\n", logCount);
+    for (uint16_t i = 0; i < logCount; i++) {
+        Serial.printf("L,%lu", (unsigned long)logT[i]);
+        for (int j = 0; j < GORON_OBS; j++) Serial.printf(",%.4f", logObs[i][j]);
+        for (int j = 0; j < GORON_ACT; j++) Serial.printf(",%.4f", logAct[i][j]);
+        Serial.println();
+    }
+    Serial.println("L,end");
+}
+
 // 観測を組み立てる。並びはエクスポートしたヘッダの冒頭の表に従う
 static void buildObs(float obs[GORON_OBS], float crank[DXL_COUNT]) {
     float a[3], g[3];
@@ -406,6 +443,7 @@ static void buildObs(float obs[GORON_OBS], float crank[DXL_COUNT]) {
         obs[i]     = up;                       // [0:3] 重力方向（＝上方向）
         obs[3 + i] = w * (float)M_PI / 180.0f;  // [3:6] 角速度 [rad/s]
     }
+    for (int i = 0; i < 3; i++) { lastImu[i] = a[i]; lastImu[3 + i] = g[i]; }
 
     for (uint8_t i = 0; i < legCount; i++) {
         float present = dxl.getPresentPosition(legIds[i], UNIT_DEGREE);
@@ -415,6 +453,7 @@ static void buildObs(float obs[GORON_OBS], float crank[DXL_COUNT]) {
         obs[6 + i] = sinf(q);
         obs[8 + i] = cosf(q);
         // 速度は 0.229 rpm 単位。無負荷速度で正規化する
+        lastRaw[i] = present; lastCrank[i] = crankDeg(i, present);
         float vel = dxl.getPresentVelocity(legIds[i], UNIT_RPM) * 2.0f * (float)M_PI / 60.0f;
         obs[10 + i] = vel / GORON_NO_LOAD_SPEED;
         // トルクは電流から。全開PWMの実測電流を失速トルクに対応づけている
@@ -425,6 +464,7 @@ static void buildObs(float obs[GORON_OBS], float crank[DXL_COUNT]) {
 
 static void stopPolicy(const char* why) {
     policyRunning = false;
+    logging = false;
     for (uint8_t i = 0; i < legCount; i++) {
         dxl.setGoalPosition(legIds[i], dxl.getPresentPosition(legIds[i], UNIT_DEGREE),
                             UNIT_DEGREE);
@@ -438,7 +478,20 @@ static void startPolicy(bool dry = false) {
         Serial.println("policy: needs both servos");
         return;
     }
+    // 較正中はトルクが抜けている。そのまま走らせると、方策は計算も指令もするのに
+    // 脚は一切動かず、記録には「速度も電流もゼロ」だけが残る。いちばん気づきにくい
+    // 失敗の仕方なので、拒否する
+    if (calibrating) {
+        Serial.println("policy: still calibrating -- press C to finish first");
+        return;
+    }
     setMode(OP_EXTENDED_POSITION);
+    // setMode はモードが変わらなければ何もしない。トルクだけは毎回入れ直す
+    for (uint8_t i = 0; i < legCount; i++) {
+        dxl.setGoalPosition(legIds[i], dxl.getPresentPosition(legIds[i], UNIT_DEGREE),
+                            UNIT_DEGREE);
+        dxl.torqueOn(legIds[i]);
+    }
     for (uint8_t i = 0; i < legCount; i++) {
         // プロファイルを切る。入れるとサーボ同定と違う条件になる
         dxl.writeControlTableItem(PROFILE_VELOCITY, legIds[i], 0);
@@ -449,11 +502,20 @@ static void startPolicy(bool dry = false) {
     legMode = 0xFF;          // プロファイルを触ったので次の setMode で入れ直させる
     policyLateUs = 0;
     policyRunning = true;
-    Serial.printf("policy: started (%s, %d Hz)%s\n", GORON_POLICY, GORON_CONTROL_HZ,
+    // トルクを入れた直後に読み返すと反映前の値を拾うことがある。表示が当てに
+    // ならないと確認の意味がなくなるので、少し置いてから読む
+    delay(20);
+    int torque = 0;
+    for (uint8_t i = 0; i < legCount; i++) {
+        torque += (int)dxl.readControlTableItem(TORQUE_ENABLE, legIds[i]);
+    }
+    Serial.printf("policy: started (%s, %d Hz, torque %d/%u)%s\n",
+                  GORON_POLICY, GORON_CONTROL_HZ, torque, legCount,
                   dry ? " DRY RUN - servos will not move" : "");
 }
 
 static void policyStepOnce();
+
 
 // Core1 で 50Hz を刻む。vTaskDelayUntil は周期の起点を保つので、
 // 1回遅れても次で取り返し、平均周期がずれない
@@ -486,6 +548,13 @@ static void policyStepOnce() {
     float obs[GORON_OBS], crank[DXL_COUNT];
     buildObs(obs, crank);
     goron_policy(obs, policyAction);
+
+    if (logging && logCount < LOG_SAMPLES) {
+        logT[logCount] = micros();
+        memcpy(logObs[logCount], obs, sizeof(obs));
+        memcpy(logAct[logCount], policyAction, sizeof(policyAction));
+        logCount++;
+    }
 
     const float maxDeltaDeg = GORON_MAX_DELTA * 180.0f / (float)M_PI;
     const float maxLeadDeg  = GORON_MAX_LEAD  * 180.0f / (float)M_PI;
@@ -628,6 +697,22 @@ static void identifyServo(uint8_t id, float stepDeg) {
 static void dumpControlTable() {
     for (uint8_t i = 0; i < legCount; i++) {
         uint8_t id = legIds[i];
+        // 方策が動かないときの切り分け用。指令が届いているか、トルクが入っているか、
+        // 目標と現在がどれだけ離れているかを、サーボ自身に聞く
+        // 速度と電流は方策の観測 obs[10:14] の元になる量。既知の回転をさせながら
+        // これを読めば、実機の観測がシミュレータと同じ意味かを確かめられる
+        Serial.printf("D,id=%u,torque=%d,mode=%d,goal=%.1f,present=%.1f,"
+                      "err=%.1f,vel_rpm=%.2f,cur=%d,moving=%d\n",
+                      id,
+                      (int)dxl.readControlTableItem(TORQUE_ENABLE, id),
+                      (int)dxl.readControlTableItem(OPERATING_MODE, id),
+                      dxl.readControlTableItem(GOAL_POSITION, id) * 0.087891f,
+                      dxl.getPresentPosition(id, UNIT_DEGREE),
+                      dxl.readControlTableItem(GOAL_POSITION, id) * 0.087891f
+                        - dxl.getPresentPosition(id, UNIT_DEGREE),
+                      dxl.getPresentVelocity(id, UNIT_RPM),
+                      (int)(int16_t)dxl.readControlTableItem(PRESENT_CURRENT, id),
+                      (int)dxl.readControlTableItem(MOVING, id));
         Serial.printf("D,id=%u,volt=%.1f,temp=%d,kp=%d,ki=%d,kd=%d,"
                       "cur_lim=%d,vel_lim=%lu,pwm_lim=%d,mode=%d,delay=%u\n",
                       id,
@@ -675,6 +760,17 @@ static void handleSerialCommand() {
         bool hasArg = sscanf(line.c_str() + 1, "%d", &dry) == 1;
         if (policyRunning) stopPolicy("serial");
         else               startPolicy(hasArg && dry == 0);   // "P 0" = 空回し
+        return;
+    }
+
+    // "L": 記録を開始（方策も一緒に走らせる）。"L?" で吐き出す
+    if (line.startsWith("L")) {
+        if (line.indexOf('?') >= 0) { dumpLog(); return; }
+        logCount = 0;
+        logging = true;
+        if (!policyRunning) startPolicy(false);
+        Serial.printf("L,recording %u samples (%.1f s)\n",
+                      LOG_SAMPLES, (float)LOG_SAMPLES / GORON_CONTROL_HZ);
         return;
     }
     if (line.startsWith("W")) {
@@ -752,14 +848,22 @@ static void handleSerialCommand() {
 static void sendTelemetry() {
     if (legCount == 0) return;
 
-    float ax = 0, ay = 0, az = 0, gx = 0, gy = 0, gz = 0;
-    M5.Imu.getAccel(&ax, &ay, &az);  // [g]。静止時は重力方向を指す
-    M5.Imu.getGyro(&gx, &gy, &gz);   // [deg/s]
-
+    float ax, ay, az, gx, gy, gz;
     float raw[DXL_COUNT], crank[DXL_COUNT];
-    for (uint8_t i = 0; i < legCount; i++) {
-        raw[i]   = dxl.getPresentPosition(legIds[i], UNIT_DEGREE);
-        crank[i] = crankDeg(i, raw[i]);
+    if (policyRunning) {
+        // 制御ループが読んだ写しを使う。バスにも IMU にも触らない
+        ax = lastImu[0]; ay = lastImu[1]; az = lastImu[2];
+        gx = lastImu[3]; gy = lastImu[4]; gz = lastImu[5];
+        for (uint8_t i = 0; i < legCount; i++) {
+            raw[i] = lastRaw[i]; crank[i] = lastCrank[i];
+        }
+    } else {
+        M5.Imu.getAccel(&ax, &ay, &az);  // [g]。静止時は重力方向を指す
+        M5.Imu.getGyro(&gx, &gy, &gz);   // [deg/s]
+        for (uint8_t i = 0; i < legCount; i++) {
+            raw[i]   = dxl.getPresentPosition(legIds[i], UNIT_DEGREE);
+            crank[i] = crankDeg(i, raw[i]);
+        }
     }
     Serial.printf("T,%lu,%.2f,%.2f,%.2f,%.2f,%.4f,%.4f,%.4f,%.2f,%.2f,%.2f\n",
                   (unsigned long)millis(), raw[0], raw[1], crank[0], crank[1],
@@ -830,9 +934,9 @@ void loop() {
 
     uint32_t now = millis();
     static uint32_t nextTelem = 0;
-    // 方策実行中はテレメトリを止める。サーボの読みが制御周期を圧迫するうえ、
-    // 115200 baud では 20Hz ぶんの送信が 50Hz の予算に食い込む
-    if (!policyRunning && now >= nextTelem) {
+    // 方策実行中も送る。値は制御ループの写しなので、バスにも制御周期にも
+    // 影響しない（scripts/mirror で走行中の姿勢を見るため）
+    if (now >= nextTelem) {
         nextTelem = now + TELEM_MS;
         sendTelemetry();
     }
