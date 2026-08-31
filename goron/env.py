@@ -8,7 +8,7 @@ observation and action contract and one set of physics.
 Observation (14 values, all obtainable on the real robot from the M5Stack's
 6-axis IMU plus the XL330's feedback over TTL):
 
-    [0:3]   gravity direction in the body frame   (IMU attitude / accelerometer)
+    [0:3]   accelerometer, in g (gravity plus motion)   (IMU accelerometer)
     [3:6]   body angular velocity, rad/s          (gyro)
     [6:10]  sin/cos of each crank angle           (XL330 absolute encoder)
     [10:12] crank angular velocity, normalised    (XL330 Present Velocity)
@@ -71,6 +71,7 @@ class GoronEnv(gym.Env):
         self.data = mujoco.MjData(self.model)
 
         self.torso_bid = self.model.body("torso").id
+        self._accel_adr = int(self.model.sensor("accel").adr[0])
         self.torso_gid = self.model.geom("torso").id
         self.floor_gid = self.model.geom("floor").id
         # Every geom carried by a leg body, rather than the ones named "foot_*":
@@ -110,8 +111,21 @@ class GoronEnv(gym.Env):
 
     @property
     def gravity_body(self) -> np.ndarray:
-        """World up in the body frame == accelerometer reading at rest."""
-        return self.rot[2, :].copy()
+        """What the IMU's accelerometer actually reads, in g.
+
+        Not the attitude. An accelerometer measures specific force, which is
+        gravity *plus* whatever the body is doing, so it only equals the up
+        axis while the robot is still. Reading the attitude here instead was a
+        silent sim2real break: on the real robot standing up, this vector
+        ranged over 0.40 to 3.66 g and spent a quarter of the run more than
+        20% away from unit length, while in simulation it was exactly 1.0 by
+        construction. The policy met inputs it had never seen precisely when
+        it was working hardest.
+
+        MuJoCo's own accelerometer sensor includes the dynamic term, so the
+        fix is to read the sensor that was declared in the model all along.
+        """
+        return self.data.sensordata[self._accel_adr:self._accel_adr + 3] / 9.81
 
     @property
     def gyro(self) -> np.ndarray:
@@ -222,7 +236,13 @@ class GoronEnv(gym.Env):
             return
         u = self.np_random.uniform
         self.model.body_mass[self.torso_bid] *= u(0.85, 1.15)
-        self.model.geom_friction[:, 0] *= u(0.7, 1.4)
+        # Friction spans a factor of four rather than +/-40%. The belly's 0.302
+        # was measured, but the legs' could not be -- the robot cannot stand on
+        # two tips to be shoved -- so the value it runs on is a guess inside
+        # roughly this range. A policy tuned to one point of an unmeasured
+        # quantity is the failure this project already shipped once: it scored
+        # 186 at mu=0.30 and -10 at mu=0.80, and fell over on the real robot.
+        self.model.geom_friction[:, 0] *= u(0.6, 2.6)
         kp_scale = u(0.7, 1.3)
         # position actuator: gain = [kp], bias = [0, -kp, -kv]
         self.model.actuator_gainprm[:, 0] *= kp_scale

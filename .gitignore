@@ -16,6 +16,9 @@ MJMODEL.TXT
 # Stray runtime logs
 log_iotc.txt
 
+# for study
+study
+
 # Python / tooling
 __pycache__/
 *.py[cod]
