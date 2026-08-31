@@ -21,6 +21,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+import mujoco
 import numpy as np
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -232,21 +233,47 @@ class Crawl(Task):
     name = "crawl"
     max_steps = 600
     rate = 200.0
+    # Terminating at 45 degrees was tried and made things worse, for a reason
+    # worth recording: the real robot runs pitched back 18 degrees on average
+    # and reaches 47, so the states it actually spends its time in were the
+    # ones training threw away. A policy cannot learn to recover from a pose it
+    # is never allowed to be in. The limit goes back to 60 -- far enough out to
+    # keep the tumbling episodes -- and staying level is asked for through the
+    # reward instead.
     max_tilt = math.radians(60.0)
+    # Past this the levelness multiplier is zero and only termination remains.
+    level_tilt = math.radians(40.0)
+    # The robot is put down however it happens to be sitting, and it pitches
+    # back as it moves. Starting every episode within 1.7 degrees of level
+    # taught it nothing about either.
+    tilt_noise = 0.5   # rad, about 29 degrees
 
     def reset(self, env: "GoronEnv") -> None:
         env.data.qpos[7:9] = env.np_random.uniform(-math.pi, math.pi, 2)
         env.place(quat=np.array([1.0, 0.0, 0.0, 0.0]),
                   yaw=env.np_random.uniform(-math.pi, math.pi),
-                  tilt_noise=0.03)
+                  tilt_noise=self.tilt_noise)
         env.settle(300)
         self.start = env.torso_pos[:2].copy()
         self.prev_dist = 0.0
         self.worst_tilt = 0.0
 
+    def levelness(self, env: "GoronEnv") -> float:
+        """1 while flat, falling to 0 by `level_tilt`."""
+        floor = math.cos(self.level_tilt)
+        return max(0.0, (env.up_z - floor) / (1.0 - floor))
+
     def reward(self, env: "GoronEnv", action: np.ndarray) -> float:
         dist = float(np.linalg.norm(env.torso_pos[:2] - self.start))
-        r = self.rate * (dist - self.prev_dist) - self.effort_cost(env, action)
+        step = dist - self.prev_dist
+        # Levelness multiplies the ground gained instead of being subtracted
+        # from it. Subtracting is the knife-edge the docstring above describes;
+        # multiplying has no balance point to miss, because both degenerate
+        # answers pay nothing -- sitting still gains no ground, and tumbling
+        # drives the multiplier to zero. Only forward progress is discounted,
+        # or the robot could creep out flat and fall back tilted for free.
+        credit = self.levelness(env) * max(step, 0.0) + min(step, 0.0)
+        r = self.rate * credit - self.effort_cost(env, action)
         self.prev_dist = dist
         self.worst_tilt = max(self.worst_tilt,
                               math.degrees(math.acos(np.clip(env.up_z, -1, 1))))
@@ -260,6 +287,11 @@ class Crawl(Task):
             "distance": self.prev_dist,
             "speed": self.prev_dist / max(1e-9, env.step_count * env.control_dt),
             "worst_tilt": self.worst_tilt,
+            # Travelled without being cut short for tumbling. Tilt is not part
+            # of it: the termination already carries that requirement, and a
+            # success flag that repeats a constraint tells the training curve
+            # nothing it does not already show.
+            "is_success": self.prev_dist > 0.5,
         }
 
 
@@ -344,14 +376,44 @@ class Stand(Task):
     0.337 N.m the policy can command. This is a bandwidth problem, not a
     strength one.
 
-    Reward is height held while the belly stays clear of the floor, so resting
-    on the belly earns nothing. Falling is not terminated: getting back up is
-    part of the task, and the robot already knows how to self-right.
+    Reward is the height of the body, normalised so that lying down is 0 and
+    standing on the tips is 1, and squared. Paying per step for a "standing"
+    flag instead does not work: the first attempt did that, and the policy
+    found a pose that leans the body on one bottom edge with the legs tucked
+    under it -- tilted 16 degrees, 48 mm up out of the 75 mm available, dead
+    still. That is statically stable and needs no balancing at all, and it
+    collected almost the whole reward through the uprightness term while
+    never once satisfying the standing flag. Squaring the height leaves that
+    pose earning a tenth of what standing earns.
+
+    Angular velocity is penalised because the other way to farm a height
+    term is to bounce through it.
     """
 
     name = "stand"
     max_steps = 500          # 10 s
     has_success = True
+
+    def _stand_height(self, env: "GoronEnv") -> float:
+        """How high the body rides with the legs straight down under it.
+
+        Measured off the model rather than written down, so that changing the
+        leg or the hip placement does not silently rescale the reward.
+        """
+        hinge = env.model.body("leg_left").pos[2]      # relative to the torso
+        reach = 0.0
+        leg_bid = env.model.body("leg_left").id
+        for g in range(env.model.ngeom):
+            if env.model.geom_bodyid[g] != leg_bid:
+                continue
+            if env.model.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH:
+                mid = env.model.geom_dataid[g]
+                adr = env.model.mesh_vertadr[mid]
+                v = env.model.mesh_vert[adr:adr + env.model.mesh_vertnum[mid]]
+                reach = max(reach, float(np.max(np.linalg.norm(v[:, [0, 2]], axis=1))))
+            else:
+                reach = max(reach, float(env.model.geom_rbound[g]))
+        return reach + hinge
 
     def reset(self, env: "GoronEnv") -> None:
         # Start belly-down, cranks near the pose where the tips just touch, so
@@ -362,6 +424,7 @@ class Stand(Task):
                   tilt_noise=0.05)
         env.settle(200)
         self.rest_height = float(env.torso_pos[2])
+        self.gain = max(1e-3, self._stand_height(env))
         self.held = 0
         self.best_held = 0
 
@@ -375,10 +438,11 @@ class Stand(Task):
         up = self.standing(env)
         self.held = self.held + 1 if up else 0
         self.best_held = max(self.best_held, self.held)
-        lift = max(0.0, float(env.torso_pos[2]) - self.rest_height)
-        return (10.0 * float(up)            # paid per step spent standing
-                + 20.0 * lift               # and for how high it got there
-                + 1.0 * env.up_z
+        frac = (float(env.torso_pos[2]) - self.rest_height) / self.gain
+        frac = min(1.0, max(0.0, frac))
+        return (20.0 * frac * frac          # height, and only height
+                + 10.0 * float(up)          # with a bonus for being properly up
+                - 0.3 * float(np.linalg.norm(env.gyro))   # standing, not bouncing
                 - self.effort_cost(env, action))
 
     def info(self, env: "GoronEnv") -> dict:
