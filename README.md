@@ -215,3 +215,4 @@ at_goal: 000000000000000111111110101110101111010111001110101111010111...
 | [scripts/basin.py](scripts/basin.py) | 設計スイープ（成功率ベース） |
 | [scripts/stress.py](scripts/stress.py) | 学習済み方策の破綻点探索（Sim2Real マージン） |
 | [tests/test_env.py](tests/test_env.py) | 静かに学習を壊す種類のミスを検出するテスト |
+| [handbook/index.html](handbook/index.html) | モデル作成→強化学習→実機デプロイの入門教材。実測値と失敗例つき |
