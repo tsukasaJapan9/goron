@@ -537,9 +537,14 @@ def save_mjcf(p: RobotParams = RobotParams(), path: Path | None = None) -> Path:
 
 
 if __name__ == "__main__":
-    for shape in ("bar", "c_leg"):
-        p = RobotParams(leg_shape=shape)
-        out = save_mjcf(p)
+    # The as-built robot goes first: it is the one that matches the hardware,
+    # and the one worth opening in the viewer. Leaving it out of here is why
+    # models/asbuilt.xml went stale while the identified values moved on.
+    variants = [("asbuilt", RobotParams.asbuilt()),
+                ("goron_sagittal_bar", RobotParams(leg_shape="bar")),
+                ("goron_sagittal_c_leg", RobotParams(leg_shape="c_leg"))]
+    for name, p in variants:
+        out = save_mjcf(p, MODELS_DIR / f"{name}.xml")
         print(f"{out.name}")
         print(f"  total mass      {p.total_mass * 1000:6.1f} g")
         print(f"  stall torque    {p.servo_stall_torque:6.2f} N.m x2")
@@ -548,4 +553,6 @@ if __name__ == "__main__":
         print(f"  joint damping   {p.joint_damping:8.4f} N.m.s/rad")
         print(f"  armature        {p.joint_armature:8.2e} kg.m^2 "
               f"(leg alone ~ {p.leg_mass * p.leg_length ** 2:.1e})")
+        print(f"  frictionloss    {p.joint_frictionloss:8.5f} N.m")
+        print(f"  floor / foot mu {p.floor_friction:8.3f} / {p.foot_friction:.3f}")
         print(f"  leg clears torso: {p.leg_clears_torso}")
